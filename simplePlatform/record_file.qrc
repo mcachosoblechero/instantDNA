@@ -1,0 +1,9 @@
+<RCC>
+  <qresource prefix="newPrefix">
+    <file>left.png</file>
+    <file>right.png</file>
+    <file>report.png</file>
+    <file>female_pic.png</file>
+    <file>male_pic.png</file>
+  </qresource>
+</RCC>
