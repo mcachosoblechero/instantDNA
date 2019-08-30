@@ -1,0 +1,262 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>thirdPage</class>
+ <widget class="QDialog" name="thirdPage">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>480</width>
+    <height>800</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Dialog</string>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">background-color: rgb(255, 255, 255);</string>
+  </property>
+  <widget class="QPushButton" name="pushButton">
+   <property name="geometry">
+    <rect>
+     <x>460</x>
+     <y>860</y>
+     <width>113</width>
+     <height>32</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>Cancel</string>
+   </property>
+  </widget>
+  <widget class="QLabel" name="label">
+   <property name="geometry">
+    <rect>
+     <x>5</x>
+     <y>710</y>
+     <width>470</width>
+     <height>60</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+   <property name="pixmap">
+    <pixmap resource="First_page_file.qrc">:/newPrefix/nav2.png</pixmap>
+   </property>
+   <property name="scaledContents">
+    <bool>true</bool>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="continue3">
+   <property name="geometry">
+    <rect>
+     <x>140</x>
+     <y>580</y>
+     <width>200</width>
+     <height>52</height>
+    </rect>
+   </property>
+   <property name="styleSheet">
+    <string notr="true">background-color: rgb(157, 195, 230);
+font: 20pt &quot;Arial Rounded MT Bold&quot;;
+border-radius: 15px;
+color: rgb(46, 117, 182);
+
+
+</string>
+   </property>
+   <property name="text">
+    <string>CONTINUE</string>
+   </property>
+   <property name="autoDefault">
+    <bool>false</bool>
+   </property>
+   <property name="default">
+    <bool>true</bool>
+   </property>
+   <property name="flat">
+    <bool>false</bool>
+   </property>
+  </widget>
+  <widget class="QLineEdit" name="weightEdit">
+   <property name="geometry">
+    <rect>
+     <x>270</x>
+     <y>100</y>
+     <width>80</width>
+     <height>45</height>
+    </rect>
+   </property>
+  </widget>
+  <widget class="QLineEdit" name="heightEdit">
+   <property name="geometry">
+    <rect>
+     <x>270</x>
+     <y>190</y>
+     <width>80</width>
+     <height>45</height>
+    </rect>
+   </property>
+  </widget>
+  <widget class="QLineEdit" name="respEdit">
+   <property name="geometry">
+    <rect>
+     <x>270</x>
+     <y>280</y>
+     <width>80</width>
+     <height>45</height>
+    </rect>
+   </property>
+  </widget>
+  <widget class="QLineEdit" name="heartEdit">
+   <property name="geometry">
+    <rect>
+     <x>270</x>
+     <y>370</y>
+     <width>80</width>
+     <height>45</height>
+    </rect>
+   </property>
+  </widget>
+  <widget class="QLineEdit" name="bloodEdit1">
+   <property name="geometry">
+    <rect>
+     <x>270</x>
+     <y>460</y>
+     <width>80</width>
+     <height>45</height>
+    </rect>
+   </property>
+  </widget>
+  <widget class="QLineEdit" name="bloodEdit2">
+   <property name="geometry">
+    <rect>
+     <x>380</x>
+     <y>460</y>
+     <width>80</width>
+     <height>45</height>
+    </rect>
+   </property>
+  </widget>
+  <widget class="QLabel" name="personal_details_2">
+   <property name="geometry">
+    <rect>
+     <x>40</x>
+     <y>100</y>
+     <width>171</width>
+     <height>41</height>
+    </rect>
+   </property>
+   <property name="styleSheet">
+    <string notr="true">background-color: transparent;
+font: 16pt &quot;Arial Rounded MT Bold&quot;;
+color: rgb(46, 117, 182);
+</string>
+   </property>
+   <property name="text">
+    <string>Weight (kg):</string>
+   </property>
+  </widget>
+  <widget class="QLabel" name="personal_details_3">
+   <property name="geometry">
+    <rect>
+     <x>40</x>
+     <y>190</y>
+     <width>171</width>
+     <height>41</height>
+    </rect>
+   </property>
+   <property name="styleSheet">
+    <string notr="true">background-color: transparent;
+font: 16pt &quot;Arial Rounded MT Bold&quot;;
+color: rgb(46, 117, 182);
+</string>
+   </property>
+   <property name="text">
+    <string>Height (cm):</string>
+   </property>
+  </widget>
+  <widget class="QLabel" name="personal_details_4">
+   <property name="geometry">
+    <rect>
+     <x>40</x>
+     <y>280</y>
+     <width>261</width>
+     <height>41</height>
+    </rect>
+   </property>
+   <property name="styleSheet">
+    <string notr="true">background-color: transparent;
+font: 16pt &quot;Arial Rounded MT Bold&quot;;
+color: rgb(46, 117, 182);
+</string>
+   </property>
+   <property name="text">
+    <string>Respiration rate (bpm):</string>
+   </property>
+  </widget>
+  <widget class="QLabel" name="personal_details_5">
+   <property name="geometry">
+    <rect>
+     <x>40</x>
+     <y>370</y>
+     <width>241</width>
+     <height>41</height>
+    </rect>
+   </property>
+   <property name="styleSheet">
+    <string notr="true">background-color: transparent;
+font: 16pt &quot;Arial Rounded MT Bold&quot;;
+color: rgb(46, 117, 182);
+</string>
+   </property>
+   <property name="text">
+    <string>Heart rate (bpm):</string>
+   </property>
+  </widget>
+  <widget class="QLabel" name="personal_details_6">
+   <property name="geometry">
+    <rect>
+     <x>40</x>
+     <y>460</y>
+     <width>271</width>
+     <height>41</height>
+    </rect>
+   </property>
+   <property name="styleSheet">
+    <string notr="true">background-color: transparent;
+font: 16pt &quot;Arial Rounded MT Bold&quot;;
+color: rgb(46, 117, 182);
+</string>
+   </property>
+   <property name="text">
+    <string>Blood Pressure (mmHg):</string>
+   </property>
+  </widget>
+  <widget class="QLabel" name="personal_details_7">
+   <property name="geometry">
+    <rect>
+     <x>360</x>
+     <y>460</y>
+     <width>21</width>
+     <height>41</height>
+    </rect>
+   </property>
+   <property name="styleSheet">
+    <string notr="true">background-color: transparent;
+font: 16pt &quot;Arial Rounded MT Bold&quot;;
+color: rgb(46, 117, 182);
+</string>
+   </property>
+   <property name="text">
+    <string>/</string>
+   </property>
+  </widget>
+ </widget>
+ <resources>
+  <include location="First_page_file.qrc"/>
+  <include location="First_page_file.qrc"/>
+ </resources>
+ <connections/>
+</ui>
