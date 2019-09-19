@@ -1,0 +1,10 @@
+﻿Name,Surname,Nationality,ID,Age,BodyTemp,Gender,Weight,Height,Respiration,HR,BloodPress,Symptoms,Date
+Charalampos,Maxoutis,Cy,1,13,32,Male,84,14,15,66,77/51,fatigue fever muscle cramp,29/08/2019
+Miguel,CS,Spanish,2,24,24,Male,66,34,43,43,12-Dec,fatigue fever muscle cramp,29/08/2019
+Charalampos,Maxoutis,Cy,1,13,38,Male,65,23,23,12,Dec-21,fatigue fever muscle cramp,29/08/2019
+Kenny,Malpartida,Spanish,3,19,36,Female,1,5,65,65,08-Dec,|['diarrhea',18/09/2019 18:50
+John,Doe,Spain,554575,-,30,Female,,,,,/,|['nausea',19/09/2019 00:45
+John,Doe,Spain,554575,-,-,-,,,,,/,cough diarrhea fatigue fever ,19/09/2019 00:51
+Perico,Elde,Spain,244,-,-,-,-,-,-,-,/,,19/09/2019 01:00:09
+Miguel,CS,Spanish,2,-,-,-,-,-,-,-,/,,19/09/2019 11:39:48
+Federico,Mazza,italian,112233,69,45,Male,120,210,34,22,12/25,cough diarrhea dizziness fatigue fever headache nausea muscle cramp i know miguel ,19/09/2019 11:44:45
