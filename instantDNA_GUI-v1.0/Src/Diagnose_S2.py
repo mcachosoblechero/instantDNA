@@ -212,7 +212,6 @@ class Ui_Diagnose_S2(QtWidgets.QWidget):
 		self.ageSlider.valueChanged.connect(partial(self.AgeFlag))
 		self.tempSlider_2.valueChanged['int'].connect(self.tempNumber.display)
 		self.tempSlider_2.valueChanged.connect(partial(self.TempFlat))
-		self.stack.showFullScreen()
 
 	def __init__(self, Main):
 		self.stack = QtWidgets.QWidget()

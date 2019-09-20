@@ -59,39 +59,52 @@ class Ui_Main(QtWidgets.QWidget):
 		self.PushButton1.clicked.connect(self.OpenDiagnose_S1)
 		self.PushButton2.clicked.connect(self.OpenMedicalRecords_T1)
 		self.PushButton3.clicked.connect(self.OpenDebugMenu)
+
+		self.OpenMainMenu()
 	
 	def OpenMainMenu(self):
 		self.QtStack.setCurrentIndex(0)
+		self.stack_Main.showFullScreen()
 	
 	def OpenDiagnose_S1(self):
 		self.QtStack.setCurrentIndex(1)
+		self.Ui_Diagnose_S1.stack.showFullScreen()
 
 	def OpenDiagnose_S2(self):
 		self.QtStack.setCurrentIndex(2)
+		self.Ui_Diagnose_S2.stack.showFullScreen()
 
 	def OpenDiagnose_S3(self):
 		self.QtStack.setCurrentIndex(3)
+		self.Ui_Diagnose_S3.stack.showFullScreen()
 
 	def OpenDiagnose_S4(self):
 		self.QtStack.setCurrentIndex(4)
+		self.Ui_Diagnose_S4.stack.showFullScreen()
 
 	def OpenDiagnose_S5(self):
 		self.QtStack.setCurrentIndex(5)
+		self.Ui_Diagnose_S5.stack.showFullScreen()
 
 	def OpenDiagnose_S6(self):
 		self.QtStack.setCurrentIndex(6)
+		self.Ui_Diagnose_S6.stack.showFullScreen()
 
 	def OpenMedicalRecords_T1(self):
 		self.QtStack.setCurrentIndex(7)
+		self.Ui_MedicalRecord.stack.showFullScreen()
 		
 	def OpenDebugMenu(self):
 		self.QtStack.setCurrentIndex(8)
+		self.Ui_DebugMenu.stack.showFullScreen()
 
 	def OpenDebugSettings(self):
 		self.QtStack.setCurrentIndex(9)
+		self.Ui_DebugSettings.stack.showFullScreen()
 		
 	def OpenDebugRunTest(self):
 		self.QtStack.setCurrentIndex(10)
+		self.Ui_DebugRunTest.stack.showFullScreen()
 		
 	# Define Main screen
 	def MainMenuUI(self):
@@ -125,7 +138,6 @@ class Ui_Main(QtWidgets.QWidget):
 		"border-radius: 25px\n"
 		"")
 		self.PushButton3.setText("Debug")
-		self.stack_Main.showFullScreen()
 		
 	def SetPatientDetails_S1(self, New, Name, Surname, Nationality, ID):
 		self.Patient_ID = ID
