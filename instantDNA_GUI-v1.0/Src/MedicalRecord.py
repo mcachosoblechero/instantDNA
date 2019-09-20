@@ -587,6 +587,8 @@ class Ui_MedicalRecord(QtWidgets.QWidget):
 				self.patients[i].setText(name)
 				self.reports[i].clicked.connect(partial(self.display, f[3]))
 
+		self.stack.showFullScreen()
+
 	def __init__(self, Main):
 		self.stack = QtWidgets.QWidget()
 		self.setupUi()

@@ -201,12 +201,12 @@ class Ui_Diagnose_S1(QtWidgets.QWidget):
 
 		file = pd.read_csv(os.getcwd() + '/db/patientData.csv')
 		self.KnownRecords = file.Name + ' ' + file.Surname
-		print(file['Name'])
 
 		self.comboBox.addItem("New Patient")
 		self.comboBox.addItems(self.KnownRecords)
 		self.comboBox.setCurrentIndex(0)
 		self.comboBox.blockSignals(False)
+		self.stack.showFullScreen()
 
 
 	def __init__(self, Main):

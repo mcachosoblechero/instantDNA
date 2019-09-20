@@ -72,6 +72,7 @@ class Ui_DebugRunTest(QtWidgets.QWidget):
 		self.exit.setFlat(False)
 		self.exit.setObjectName("exit")
 		self.exit.setText("Exit")
+		self.stack.showFullScreen()
 
     
 	def Test0(self):

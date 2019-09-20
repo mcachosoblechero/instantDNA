@@ -128,6 +128,7 @@ class Ui_DebugSettings(QtWidgets.QWidget):
 		self.continue5.setFlat(False)
 		self.continue5.setObjectName("continue5")
 		self.continue5.setText("Send SPI")
+		self.stack.showFullScreen()
 
 	def __init__(self, Main):
 		self.stack = QtWidgets.QWidget()

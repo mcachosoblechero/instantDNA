@@ -55,6 +55,7 @@ class Ui_DebugMenu(QtWidgets.QWidget):
 		self.MainPage.setDefault(True)
 		self.MainPage.setFlat(False)
 		self.MainPage.setText("Main page")
+		self.stack.showFullScreen()
 
 	def __init__(self, Main):
 		self.stack = QtWidgets.QWidget()

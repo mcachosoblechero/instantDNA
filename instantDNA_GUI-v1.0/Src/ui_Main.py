@@ -23,7 +23,7 @@ class Ui_Main(QtWidgets.QWidget):
 		Main.setObjectName("instantDNA")
 
 		self.QtStack = QtWidgets.QStackedLayout()
-		
+
 		# Create all screen objects
 		self.Ui_Diagnose_S1 	= Ui_Diagnose_S1(self)
 		self.Ui_Diagnose_S2 	= Ui_Diagnose_S2(self)
@@ -41,7 +41,6 @@ class Ui_Main(QtWidgets.QWidget):
 
 		# Create main stack layout
 		self.MainMenuUI()
-		self.showFullScreen()
 
 		# Create stack
 		self.QtStack.insertWidget(0, self.stack_Main)
@@ -95,7 +94,7 @@ class Ui_Main(QtWidgets.QWidget):
 		self.QtStack.setCurrentIndex(10)
 		
 	# Define Main screen
-	def MainMenuUI(self): 
+	def MainMenuUI(self):
 		self.stack_Main.resize(480, 799)
 		self.stack_Main.setStyleSheet("background-color: rgb(255, 255, 255);")
 
@@ -126,6 +125,7 @@ class Ui_Main(QtWidgets.QWidget):
 		"border-radius: 25px\n"
 		"")
 		self.PushButton3.setText("Debug")
+		self.stack_Main.showFullScreen()
 		
 	def SetPatientDetails_S1(self, New, Name, Surname, Nationality, ID):
 		self.Patient_ID = ID

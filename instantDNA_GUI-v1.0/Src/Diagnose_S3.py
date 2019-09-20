@@ -121,6 +121,7 @@ class Ui_Diagnose_S3(QtWidgets.QWidget):
 		self.personal_details_7.setObjectName("personal_details_7")
 
 		self.retranslateUi()
+		self.stack.showFullScreen()
 
 
 	def retranslateUi(self):

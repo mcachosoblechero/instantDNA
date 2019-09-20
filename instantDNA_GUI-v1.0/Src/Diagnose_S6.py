@@ -44,6 +44,7 @@ class Ui_Diagnose_S6(object):
 		self.continue2.setObjectName("continue2")
 
 		self.retranslateUi()
+		self.stack.showFullScreen()
 
 	def TestControl(self):
 		if 		self.State == 0:

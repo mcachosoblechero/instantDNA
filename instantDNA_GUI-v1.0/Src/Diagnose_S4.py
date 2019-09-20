@@ -157,6 +157,7 @@ class Ui_Diagnose_S4(QtWidgets.QWidget):
 		self.lineEdit.setObjectName("lineEdit")
 
 		self.retranslateUi()
+		self.stack.showFullScreen()
 
 	def retranslateUi(self):
 		self.stack.setWindowTitle("Diagnosis - Stage 4")

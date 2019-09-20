@@ -91,6 +91,7 @@ class Ui_Diagnose_S5(QtWidgets.QWidget):
 		self.cance5.setObjectName("cance5")
 
 		self.retranslateUi()
+		self.stack.showFullScreen()
 
 	def retranslateUi(self):
 		self.stack.setWindowTitle("Diagnosis - Stage 5")
