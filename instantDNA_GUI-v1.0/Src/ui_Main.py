@@ -41,6 +41,7 @@ class Ui_Main(QtWidgets.QWidget):
 
 		# Create main stack layout
 		self.MainMenuUI()
+		self.showFullScreen()
 
 		# Create stack
 		self.QtStack.insertWidget(0, self.stack_Main)
