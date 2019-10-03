@@ -188,6 +188,9 @@ class Ui_Diagnose_S1(QtWidgets.QWidget):
 		self.comboBox = QtWidgets.QComboBox(self.stack)
 		self.comboBox.setGeometry(QtCore.QRect(230, 540, 180, 30))
 		self.comboBox.setObjectName("comboBox")
+		self.comboBox.setStyleSheet("color: rgb(46, 117, 182);\n"
+		"font: 10pt \"Arial Rounded MT Bold\";\n"
+		"border-radius: 25px;")
 
 		# Existing Patient # 
 		self.existing_patient = QtWidgets.QLabel(self.stack)

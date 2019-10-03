@@ -36,6 +36,9 @@ class Ui_Diagnose_S2(QtWidgets.QWidget):
 	def TempFlat(self):
 		self.TempUpdated = 1
 
+	def DisplayTemp(self):
+		self.tempNumber.display(self.tempSlider_2.value()/10)
+
 	def setupUi(self):
 
 		self.stack.setObjectName("secondPage")
@@ -134,9 +137,9 @@ class Ui_Diagnose_S2(QtWidgets.QWidget):
 		
 		self.tempSlider_2 = QtWidgets.QSlider(self.stack)
 		self.tempSlider_2.setGeometry(QtCore.QRect(60, 405, 290, 41))
-		self.tempSlider_2.setMinimum(20)
-		self.tempSlider_2.setMaximum(50)
-		self.tempSlider_2.setProperty("value",20)
+		self.tempSlider_2.setMinimum(320)
+		self.tempSlider_2.setMaximum(450)
+		self.tempSlider_2.setProperty("value",320)
 		self.tempSlider_2.setOrientation(QtCore.Qt.Horizontal)
 		self.tempSlider_2.setObjectName("tempSlider_2")
 		
@@ -154,7 +157,7 @@ class Ui_Diagnose_S2(QtWidgets.QWidget):
 		"")
 		self.tempNumber.setFrameShape(QtWidgets.QFrame.StyledPanel)
 		self.tempNumber.setDigitCount(5)
-		self.tempNumber.setProperty("value", 20.0)
+		self.tempNumber.setProperty("value", 32.0)
 		self.tempNumber.setObjectName("tempNumber")
 		
 		self.label_6 = QtWidgets.QLabel(self.stack)
@@ -197,7 +200,7 @@ class Ui_Diagnose_S2(QtWidgets.QWidget):
 		"color: rgb(46, 117, 182);\n"
 		"")
 		self.temp.setObjectName("temp")
-		self.temp.setText("Body Temperature \n (C)")
+		self.temp.setText("Temp (C)")
 		
 		self.personal_details_5 = QtWidgets.QLabel(self.stack)
 		self.personal_details_5.setGeometry(QtCore.QRect(125, 510, 101, 41))
@@ -210,7 +213,7 @@ class Ui_Diagnose_S2(QtWidgets.QWidget):
 
 		self.ageSlider.valueChanged['int'].connect(self.ageNumber.display)
 		self.ageSlider.valueChanged.connect(partial(self.AgeFlag))
-		self.tempSlider_2.valueChanged['int'].connect(self.tempNumber.display)
+		self.tempSlider_2.valueChanged.connect(partial(self.DisplayTemp))
 		self.tempSlider_2.valueChanged.connect(partial(self.TempFlat))
 
 	def __init__(self, Main):

@@ -14,6 +14,7 @@ from Src import MediaResources_Diagnose
 from Src import MediaResources_MedicalRecords
 from Src import MediaResources_DebugSettings
 from Src import MediaResources_TestRunning
+from Driver import instantDNA
 
 import sys
 
@@ -24,17 +25,20 @@ class Ui_Main(QtWidgets.QWidget):
 
 		self.QtStack = QtWidgets.QStackedLayout()
 
+		# Create Driver objects
+		self.iDNA_driver = instantDNA.instantDNA()
+
 		# Create all screen objects
 		self.Ui_Diagnose_S1 	= Ui_Diagnose_S1(self)
 		self.Ui_Diagnose_S2 	= Ui_Diagnose_S2(self)
 		self.Ui_Diagnose_S3 	= Ui_Diagnose_S3(self)
 		self.Ui_Diagnose_S4 	= Ui_Diagnose_S4(self)
 		self.Ui_Diagnose_S5 	= Ui_Diagnose_S5(self)
-		self.Ui_Diagnose_S6 	= Ui_Diagnose_S6(self)		
+		self.Ui_Diagnose_S6 	= Ui_Diagnose_S6(self, self.iDNA_driver)		
 		self.Ui_MedicalRecord 	= Ui_MedicalRecord(self)
-		self.Ui_DebugMenu 		= Ui_DebugMenu(self)
+		self.Ui_DebugMenu 	= Ui_DebugMenu(self)
 		self.Ui_DebugSettings 	= Ui_DebugSettings(self)
-		self.Ui_DebugRunTest 	= Ui_DebugRunTest(self)
+		self.Ui_DebugRunTest 	= Ui_DebugRunTest(self, self.iDNA_driver)
 				
 		# Create main stack layers
 		self.stack_Main 				= QtWidgets.QWidget()
