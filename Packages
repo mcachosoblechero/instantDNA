@@ -1,0 +1,3 @@
+Commands to obtain the required packages:
+sudo apt-get install python3-pyqtgraph
+sudo apt-get install python3-pandas
