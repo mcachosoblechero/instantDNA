@@ -1,0 +1,28 @@
+--cpu=Cortex-M4.fp
+"dnapi_first\startup_stm32f405xx.o"
+"dnapi_first\main.o"
+"dnapi_first\stm32f4xx_it.o"
+"dnapi_first\stm32f4xx_hal_msp.o"
+"dnapi_first\stm32f4xx_hal_dac.o"
+"dnapi_first\stm32f4xx_hal_dac_ex.o"
+"dnapi_first\stm32f4xx_hal_spi.o"
+"dnapi_first\stm32f4xx_hal_tim.o"
+"dnapi_first\stm32f4xx_hal_tim_ex.o"
+"dnapi_first\stm32f4xx_hal_rcc.o"
+"dnapi_first\stm32f4xx_hal_rcc_ex.o"
+"dnapi_first\stm32f4xx_hal_flash.o"
+"dnapi_first\stm32f4xx_hal_flash_ex.o"
+"dnapi_first\stm32f4xx_hal_flash_ramfunc.o"
+"dnapi_first\stm32f4xx_hal_gpio.o"
+"dnapi_first\stm32f4xx_hal_dma_ex.o"
+"dnapi_first\stm32f4xx_hal_dma.o"
+"dnapi_first\stm32f4xx_hal_pwr.o"
+"dnapi_first\stm32f4xx_hal_pwr_ex.o"
+"dnapi_first\stm32f4xx_hal_cortex.o"
+"dnapi_first\stm32f4xx_hal.o"
+"dnapi_first\stm32f4xx_hal_exti.o"
+"dnapi_first\system_stm32f4xx.o"
+--library_type=microlib --strict --scatter "DNAPi_first\DNAPi_first.sct"
+--summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
+--info sizes --info totals --info unused --info veneers
+--list "DNAPi_first.map" -o DNAPi_first\DNAPi_first.axf
