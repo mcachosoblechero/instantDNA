@@ -13,7 +13,7 @@ class instantDNA:
 		self.cb = self.pi.callback(7,pigpio.RISING_EDGE, self.isr_frame)
 		self.StoredAvFrames_DutyCycle = list()
 		self.RunningDNATest = 0
-		self.Patient_Diagnosis = True
+		self.Patient_Diagnosis = False
 		self.HelloWorld()
 
 	def HelloWorld(self):
@@ -27,7 +27,7 @@ class instantDNA:
 		# STEP 1 - HEAT THE SOLUTION #		
 		if self.State == "Ready":
 			print("Starting Test")
-			#self.Patient_Diagnosis = self.RunLottery()
+			self.Patient_Diagnosis = self.RunLottery()
 			print("Patient Diagnosis is: " + str(self.Patient_Diagnosis))
 			self.State = "CalibArray" ## <- Change when heating is available
 			self.DNATest()
@@ -152,7 +152,7 @@ class instantDNA:
 	def FlushFrameBuffer(self):
 		self.StoredAvFrames_DutyCycle = list()
 		frame = np.transpose(np.array(np.zeros(1024)).reshape((32,32)))
-		self.TargetPlot3D.setImage(frame, autoRange=False, autoLevels=False, autoHistogramRange=True)
+		self.TargetPlot3D.setImage(frame, autoRange=False, autoLevels=False, autoHistogramRange=False)
 		self.Curve.setData(list())
 
 	def StoreAverageFrame(self):
@@ -191,6 +191,6 @@ class instantDNA:
 			return False
 
 	def FakepH(self):
-		if len(self.StoredAvFrames_DutyCycle) > 45 and len(self.StoredAvFrames_DutyCycle) < 55:
+		if len(self.StoredAvFrames_DutyCycle) > 55 and len(self.StoredAvFrames_DutyCycle) < 65:
 			spi_message = [9] + list(bytearray(struct.pack("f",1.0)))
 			(count, data) = self.pi.spi_xfer(self.spi_h, spi_message)

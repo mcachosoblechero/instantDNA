@@ -64,8 +64,11 @@ class Ui_Main(QtWidgets.QWidget):
 		self.PushButton2.clicked.connect(self.OpenMedicalRecords_T1)
 		self.PushButton3.clicked.connect(self.OpenDebugMenu)
 
+		# Establish initial plots
+		self.iDNA_driver.SetupPlots(self.Ui_DebugRunTest.graphicsView, self.Ui_DebugRunTest.graphicsView_2)
+
 		self.OpenMainMenu()
-	
+
 	def OpenMainMenu(self):
 		self.QtStack.setCurrentIndex(0)
 		self.stack_Main.showFullScreen()
