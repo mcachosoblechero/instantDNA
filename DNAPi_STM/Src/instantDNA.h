@@ -50,7 +50,7 @@ extern "C" {
 #define CALIB_MAXITER		25
 #define CALIB_MINLRANGE	0.48
 #define CALIB_MAXLRANGE	0.52
-#define CONTROLLER_KP		200
+#define CONTROLLER_KP		175
 #define ON_LIMIT				0.85
 #define OFF_LIMIT				0.15
 
@@ -220,7 +220,7 @@ void Calib_Array_STM(volatile int *FrameBuf){
 	if (NumPixels_Off > NumPixels_On) RefStep = -0.1;
 	else RefStep = 0.1;
 	
-	while(!Flag){
+	while(!Flag & instantDNA.DAC_RefElect_Voltage > (float) -4.0 & instantDNA.DAC_RefElect_Voltage < (float) 4.0){
 		instantDNA.DAC_RefElect_Voltage += RefStep;
 		setup_DAC(DAC_REFELEC);
 		
@@ -369,7 +369,8 @@ void setup_DAC(char DAC_Select)
 			break;
 			
 		case DAC_VBIAS:
-			data_to_send = dac_to_binary(voltage_to_dac(instantDNA.DAC_VBias_Voltage, 3.24, 0));
+			data_to_send = dac_to_binary(voltage_to_dac(0.275, 3.24, 0));
+			//data_to_send = dac_to_binary(voltage_to_dac(instantDNA.DAC_VBias_Voltage, 3.24, 0));
 			HAL_GPIO_WritePin(GPIOC, V_BIAS_CS_Pin, GPIO_PIN_RESET);
 			HAL_SPI_Transmit(&hspi2, (uint8_t*)&data_to_send, 2, 256);
 			HAL_GPIO_WritePin(GPIOC, V_BIAS_CS_Pin, GPIO_PIN_SET);
