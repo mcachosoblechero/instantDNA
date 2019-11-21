@@ -20,20 +20,20 @@ class Ui_Diagnose_S6(object):
 		self.stack.setStyleSheet("background-color: rgb(255, 255, 255);")
 
 		self.nurse = QtWidgets.QLabel(self.stack)
-		self.nurse.setGeometry(QtCore.QRect(60, 20, 227.5, 162.5))
+		self.nurse.setGeometry(QtCore.QRect(30, 20, 227.5, 162.5))
 		self.nurse.setText("")
 		self.nurse.setPixmap(QtGui.QPixmap(":/newPrefix/doctor3.png"))
 		self.nurse.setScaledContents(True)
 		self.nurse.setObjectName("nurse")
 
 		self.textLabel = QtWidgets.QLabel(self.stack)
-		self.textLabel.setGeometry(QtCore.QRect(140, 35, 211, 41))
+		self.textLabel.setGeometry(QtCore.QRect(110, 35, 211, 41))
 		self.textLabel.setStyleSheet("background-color: transparent;")
 		self.textLabel.setText("")
 		self.textLabel.setObjectName("textLabel")
 
 		self.continue1 = QtWidgets.QPushButton(self.stack)
-		self.continue1.setGeometry(QtCore.QRect(300, 20, 200, 80))
+		self.continue1.setGeometry(QtCore.QRect(270, 20, 200, 80))
 		self.continue1.setStyleSheet("background-color: rgb(157, 195, 230);\n"
 		"font: 20pt \"Arial Rounded MT Bold\";\n"
 		"border-radius: 15px;\n"
@@ -48,7 +48,7 @@ class Ui_Diagnose_S6(object):
 		self.continue1.setText("Start Test")
 
 		self.continue2 = QtWidgets.QPushButton(self.stack)
-		self.continue2.setGeometry(QtCore.QRect(300, 110, 200, 80))
+		self.continue2.setGeometry(QtCore.QRect(270, 110, 200, 80))
 		self.continue2.setStyleSheet("background-color: rgb(157, 195, 230);\n"
 		"font: 20pt \"Arial Rounded MT Bold\";\n"
 		"border-radius: 15px;\n"
@@ -63,13 +63,13 @@ class Ui_Diagnose_S6(object):
 		self.continue2.setText("End Test")
 
 		self.graphicsView = MplCmapImageView(parent=self.stack) 
-		self.graphicsView.setGeometry(QtCore.QRect(40, 200, 450, 330))
+		self.graphicsView.setGeometry(QtCore.QRect(10, 200, 450, 330))
 		self.graphicsView.setObjectName("graphicsView")
 		self.graphicsView.ui.roiBtn.hide() #added this bit of code to remoce roi and memu buttons as we dont need them
 		self.graphicsView.ui.menuBtn.hide()
 
 		self.graphicsView_2 = pg.PlotWidget(self.stack)
-		self.graphicsView_2.setGeometry(QtCore.QRect(40, 550, 450, 200))
+		self.graphicsView_2.setGeometry(QtCore.QRect(10, 550, 450, 200))
 		self.graphicsView_2.setObjectName("graphicsView_2")
 		self.graphicsView_2.setLabel('bottom', 'Samples')
 		self.graphicsView_2.setLabel('left', 'Duty Cycle [%]')
@@ -82,6 +82,7 @@ class Ui_Diagnose_S6(object):
 			iDNA_driver.RunningDNATest = 1
 			iDNA_driver.SetupTextBox(self.textLabel)
 			iDNA_driver.SetupPlots(self.graphicsView, self.graphicsView_2)
+
 			iDNA_driver.DNATest()
 
 	def EndTest(self, Main, iDNA_driver):

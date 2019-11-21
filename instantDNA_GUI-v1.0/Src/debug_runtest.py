@@ -97,15 +97,16 @@ class Ui_DebugRunTest(QtWidgets.QWidget):
 		print("Test 3")
     
 	def display(self, iDNA_driver):
-		self.comboText = int(self.comboBox.currentIndex())
-		if self.comboText == 0:
-			self.Test_ObtainSample(iDNA_driver)
-		if self.comboText == 1:
-			self.Test_CharactCurves(iDNA_driver)
-		if self.comboText == 2:
-			self.Test_CalibArray(iDNA_driver)
-		if self.comboText == 3:
-			self.Test3(iDNA_driver)   
+		if iDNA_driver.State == "Ready":
+			self.comboText = int(self.comboBox.currentIndex())
+			if self.comboText == 0:
+				self.Test_ObtainSample(iDNA_driver)
+			if self.comboText == 1:
+				self.Test_CharactCurves(iDNA_driver)
+			if self.comboText == 2:
+				self.Test_CalibArray(iDNA_driver)
+			if self.comboText == 3:
+				self.Test3(iDNA_driver)   
 
 	def __init__(self, Main, iDNA_driver):
 		self.stack = QtWidgets.QWidget()
