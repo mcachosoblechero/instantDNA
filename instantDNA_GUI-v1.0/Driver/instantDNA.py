@@ -79,7 +79,13 @@ class instantDNA:
 					self.DNATest()
 				else:
 					self.State = "Ready"
-	
+		elif self.State == "MeasTemp":
+			self.ReceiveFrame()
+			self.ProcessFrame()
+			self.StoreAverageFrame()
+			self.PlotFrame()
+			self.State = "Ready"	
+
 
 	def Setup_DAC_VRef_Value(self, DAC_Value):
 		spi_message = [1] + list(bytearray(struct.pack("f",DAC_Value)))
@@ -124,6 +130,28 @@ class instantDNA:
 	def CalibArray(self): # Need to include 2D plot
 		self.State = "CalibArray"
 		spi_message = [8] + list(bytearray(struct.pack("f",1.0)))
+		(count, data) = self.pi.spi_xfer(self.spi_h, spi_message)
+		#print ("Bytes transferred: " + str(count))
+		#print ("Data recieved:")
+		#print (list(data))
+
+	def SetLAMPTemp(self):
+		spi_message = [10] + list(bytearray(struct.pack("f",63.0)))
+		(count, data) = self.pi.spi_xfer(self.spi_h, spi_message)
+		print ("Bytes transferred: " + str(count))
+		print ("Data recieved:")
+		print (list(data))
+
+	def PCRControl(self):
+		spi_message = [11] + list(bytearray(struct.pack("f",63.0)))
+		(count, data) = self.pi.spi_xfer(self.spi_h, spi_message)
+		#print ("Bytes transferred: " + str(count))
+		#print ("Data recieved:")
+		#print (list(data))
+
+	def MeasTemp(self):
+		self.State = "MeasTemp"
+		spi_message = [12] + list(bytearray(struct.pack("f",63.0)))
 		(count, data) = self.pi.spi_xfer(self.spi_h, spi_message)
 		#print ("Bytes transferred: " + str(count))
 		#print ("Data recieved:")

@@ -49,7 +49,7 @@ class Ui_DebugRunTest(QtWidgets.QWidget):
 		"font: 10pt \"Arial Rounded MT Bold\";\n"
 		"border-radius: 25px;")
 
-		self.comboBox.addItems(["Obtain Samples", "Charact. Curves", "Calibrate Array", "Test4"])
+		self.comboBox.addItems(["Obtain Samples", "Charact. Curves", "Calibrate Array", "Measure Temp", "LAMP Test", "PCR Test"])
 	
 		self.save = QtWidgets.QPushButton(self.stack)
 		self.save.setGeometry(QtCore.QRect(110, 710, 111, 45))
@@ -93,20 +93,36 @@ class Ui_DebugRunTest(QtWidgets.QWidget):
 		iDNA_driver.SetupPlots(self.graphicsView, self.graphicsView_2)
 		iDNA_driver.CalibArray()
 
-	def Test3(self, iDNA_driver):
-		print("Test 3")
+	def Test_MeasTemp(self, iDNA_driver):
+		print("Running Test: Obtain samples")
+		iDNA_driver.SetupPlots(self.graphicsView, self.graphicsView_2)
+		iDNA_driver.MeasTemp()
+
+	def Test_LAMPTest(self, iDNA_driver):
+		iDNA_driver.SetupPlots(self.graphicsView, self.graphicsView_2)
+		iDNA_driver.SetLAMPTemp()
+		print("LAMP Test")
     
+	def Test_PCRTest(self, iDNA_driver):
+		iDNA_driver.SetupPlots(self.graphicsView, self.graphicsView_2)
+		iDNA_driver.PCRControl()
+		print("PCR Test")
+
 	def display(self, iDNA_driver):
 		if iDNA_driver.State == "Ready":
 			self.comboText = int(self.comboBox.currentIndex())
 			if self.comboText == 0:
 				self.Test_ObtainSample(iDNA_driver)
-			if self.comboText == 1:
+			elif self.comboText == 1:
 				self.Test_CharactCurves(iDNA_driver)
-			if self.comboText == 2:
+			elif self.comboText == 2:
 				self.Test_CalibArray(iDNA_driver)
-			if self.comboText == 3:
-				self.Test3(iDNA_driver)   
+			elif self.comboText == 3:
+				self.Test_MeasTemp(iDNA_driver)
+			elif self.comboText == 4:
+				self.Test_LAMPTest(iDNA_driver)  
+			elif self.comboText == 5:
+				self.Test_PCRTest(iDNA_driver)   
 
 	def __init__(self, Main, iDNA_driver):
 		self.stack = QtWidgets.QWidget()
