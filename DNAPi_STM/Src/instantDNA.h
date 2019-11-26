@@ -14,6 +14,7 @@ extern "C" {
 #define DAC_VBIAS 		0x01
 #define DAC_IOTA 			0x02
 #define DAC_REFELEC		0x03
+#define DAC_PELTIER		0x04
 
 // CHIP INTERFACE
 #define ISFET_OFF			0x00
@@ -24,16 +25,19 @@ extern "C" {
 #define DAC_DEBUGMODE 0x01
 
 // RPI ACTIONS
-#define HELLOWORLD			0x00
-#define SET_DAC_VREF		0x01
-#define SET_DAC_VBIAS		0x02
-#define SET_DAC_IOTA		0x03
-#define SET_DAC_REFE		0x04
-#define TEST_ONCHIPDAC  0x05
-#define OBTAIN_FRAME  	0x06
-#define CHARACTCURVES		0x07
-#define CALIB_ARRAY			0x08
-#define INCREASE_PH			0x09
+#define HELLOWORLD				0x00
+#define SET_DAC_VREF			0x01
+#define SET_DAC_VBIAS			0x02
+#define SET_DAC_IOTA			0x03
+#define SET_DAC_REFE			0x04
+#define TEST_ONCHIPDAC  	0x05
+#define OBTAIN_FRAME  		0x06
+#define CHARACTCURVES			0x07
+#define CALIB_ARRAY				0x08
+#define INCREASE_PH				0x09
+#define LAMP_CONTROL			0x0A
+#define PCR_CONTROL				0x0B
+#define OBTAIN_TEMP_FRAME 0x0C
 
 #define PIXEL_TIMEOUT		84000 // -> 1ms @ 84MHz
 
@@ -45,14 +49,18 @@ extern "C" {
 #define DAC_VBIAS_DEFAULT			0.272
 #define DAC_IOTA_DEFAULT			0.3
 #define DAC_REFELECT_DEFAULT	0.0
+#define DAC_PELTIER_DEFAULT 	0.0
 
 // CALIBRATION PARAMETERS
-#define CALIB_MAXITER		25
-#define CALIB_MINLRANGE	0.48
-#define CALIB_MAXLRANGE	0.52
-#define CONTROLLER_KP		175
-#define ON_LIMIT				0.85
-#define OFF_LIMIT				0.15
+#define CALIB_DC_MAXITER			25
+#define CALIB_DC_MINLRANGE		0.48
+#define CALIB_DC_MAXLRANGE		0.52
+#define CALIB_FREQ_MAXITER		10
+#define CALIB_FREQ_MINLRANGE	0.48
+#define CALIB_FREQ_MAXLRANGE	0.52
+#define CONTROLLER_KP					175
+#define ON_LIMIT							0.85
+#define OFF_LIMIT							0.15
 
 /************* PLATFORM VARIABLES ***********/
 extern DAC_HandleTypeDef hdac;
@@ -75,8 +83,11 @@ struct PlatformParameters {
 	float DAC_VBias_Voltage;
 	float DAC_IOTA_Voltage;
 	float DAC_RefElect_Voltage;
+	float DAC_Peltier_Voltage;
+	float Platform_Temp;
 	
-	int CalibrationBuffer[1024];
+	int CalibrationBuffer_DutyCycle[1024];
+	int CalibrationBuffer_Frequency[1024];
 	float DutyCycleBuffer[1024];
 	
 };
@@ -116,10 +127,14 @@ volatile char PixTimeout = 0;
 // FUNCTIONS HEADERS
 /******* HIGH LEVEL FUNCTIONS *************/
 void InitPlatform(void);
-void ObtainAndSendFrame(volatile int*);
 void TestOnChipDAC_Platform(void);
 void ObtainCharactCurves(volatile int*);
-void Calib_Array_STM(volatile int*);
+void ObtainAndSendFrame_Chem(volatile int*);
+void ObtainAndSendFrame_Temp(volatile int*);
+void Calib_Array_Chem_STM(volatile int*);
+void Calib_Array_Temp_STM(volatile int*);
+void LAMPControl(float, volatile int*);
+void PCRControl(volatile int*, int);
 /******* DRIVERS **************************/
 void WaitSPICommand(void);
 uint16_t voltage_to_dac(float voltage, float max, float min);
@@ -128,7 +143,7 @@ void setup_DAC(char DAC_Select);
 void setup_Chip(char Enable, char Row, char Column, int DAC_Value, char DAC_Source, char DAC_Debug);
 void Start_Timers(void);
 void Stop_Timers(void);
-volatile int* ObtainFrame(volatile int*);
+volatile int* ObtainFrame(volatile int*, volatile int*);
 void SendFrame_RPi(volatile int*);
 void CalculateFrameDutyCycle(volatile int*);
 int CalibrationController(float);
@@ -145,15 +160,25 @@ void InitPlatform(void){
 	instantDNA.DAC_VBias_Voltage = DAC_VBIAS_DEFAULT;
 	instantDNA.DAC_IOTA_Voltage = DAC_IOTA_DEFAULT;
 	instantDNA.DAC_RefElect_Voltage = DAC_REFELECT_DEFAULT;
-	for (i = 0; i < 1024; i++) instantDNA.CalibrationBuffer[i] = 1024;
+	instantDNA.DAC_Peltier_Voltage = DAC_PELTIER_DEFAULT;
+	for (i = 0; i < 1024; i++) instantDNA.CalibrationBuffer_DutyCycle[i] = 1024;
+	for (i = 0; i < 1024; i++) instantDNA.CalibrationBuffer_Frequency[i] = 1024;
 	
 }
 
-void ObtainAndSendFrame(volatile int *FrameBuf){
+void ObtainAndSendFrame_Chem(volatile int *FrameBuf){
 	
-	FrameBuf = ObtainFrame(FrameBuf);
+	FrameBuf = ObtainFrame(FrameBuf, instantDNA.CalibrationBuffer_DutyCycle);
 	SendFrame_RPi(FrameBuf);
 	
+}
+
+void ObtainAndSendFrame_Temp(volatile int *FrameBuf){
+
+	Calib_Array_Temp_STM(FrameBuf);
+	FrameBuf = ObtainFrame(FrameBuf, instantDNA.CalibrationBuffer_DutyCycle);
+	SendFrame_RPi(FrameBuf);
+
 }
 
 void TestOnChipDAC_Platform(void){
@@ -175,8 +200,8 @@ void ObtainCharactCurves(volatile int *FrameBuf){
 	
 	while (instantDNA.DAC_RefElect_Voltage < (float)1.5){
 		setup_DAC(DAC_REFELEC);
-		FrameBuf = ObtainFrame(FrameBuf);
-		FrameBuf = ObtainFrame(FrameBuf); // Second frame for stabilisation
+		FrameBuf = ObtainFrame(FrameBuf, instantDNA.CalibrationBuffer_DutyCycle);
+		FrameBuf = ObtainFrame(FrameBuf, instantDNA.CalibrationBuffer_DutyCycle); // Second frame for stabilisation
 		SendFrame_RPi(FrameBuf);
 		instantDNA.DAC_RefElect_Voltage += (float)0.025;
 		
@@ -184,7 +209,7 @@ void ObtainCharactCurves(volatile int *FrameBuf){
 
 }
 
-void Calib_Array_STM(volatile int *FrameBuf){
+void Calib_Array_Chem_STM(volatile int *FrameBuf){
 
 	int NumCalibPixels = 0;
 	int NumIter = 0;
@@ -209,7 +234,7 @@ void Calib_Array_STM(volatile int *FrameBuf){
 	setup_DAC(DAC_REFELEC);
 	
 	// Obtain sample
-	FrameBuf = ObtainFrame(FrameBuf);
+	FrameBuf = ObtainFrame(FrameBuf, instantDNA.CalibrationBuffer_DutyCycle);
 	CalculateFrameDutyCycle(FrameBuf);
 	for(pixel=0;pixel<NUMPIXELS;pixel++){
 		if (instantDNA.DutyCycleBuffer[pixel] > (float)ON_LIMIT) NumPixels_On++;
@@ -224,7 +249,7 @@ void Calib_Array_STM(volatile int *FrameBuf){
 		instantDNA.DAC_RefElect_Voltage += RefStep;
 		setup_DAC(DAC_REFELEC);
 		
-		FrameBuf = ObtainFrame(FrameBuf);
+		FrameBuf = ObtainFrame(FrameBuf, instantDNA.CalibrationBuffer_DutyCycle);
 		CalculateFrameDutyCycle(FrameBuf);
 		PrevNumPixels_Osc = NumPixels_Osc;
 		NumPixels_Osc = 0;
@@ -246,27 +271,27 @@ void Calib_Array_STM(volatile int *FrameBuf){
 	/****************************************/
 	/* Step 2 - Set Calib Values						*/
 	/****************************************/
-	while (NumCalibPixels < NUMPIXELS && NumIter < CALIB_MAXITER){
+	while (NumCalibPixels < NUMPIXELS && NumIter < CALIB_DC_MAXITER){
 	
-		FrameBuf = ObtainFrame(FrameBuf);
+		FrameBuf = ObtainFrame(FrameBuf, instantDNA.CalibrationBuffer_DutyCycle);
 		CalculateFrameDutyCycle(FrameBuf);
 		NumCalibPixels = 0;
 		
 		for(pixel=0;pixel<NUMPIXELS;pixel++){
 			// IF Pixel is in range or CalibDac is out of range
-			if ((instantDNA.DutyCycleBuffer[pixel] >= (float)CALIB_MINLRANGE && 
-					instantDNA.DutyCycleBuffer[pixel] <= (float)CALIB_MAXLRANGE) || 
-					instantDNA.CalibrationBuffer[pixel] <= 0 || 
-					instantDNA.CalibrationBuffer[pixel] >= 2047){
+			if ((instantDNA.DutyCycleBuffer[pixel] >= (float)CALIB_DC_MINLRANGE && 
+					instantDNA.DutyCycleBuffer[pixel] <= (float)CALIB_DC_MAXLRANGE) || 
+					instantDNA.CalibrationBuffer_DutyCycle[pixel] <= 0 || 
+					instantDNA.CalibrationBuffer_DutyCycle[pixel] >= 2047){
 				NumCalibPixels++;
 			}
 			
 			// Controller
-			instantDNA.CalibrationBuffer[pixel] += CalibrationController(instantDNA.DutyCycleBuffer[pixel]);
+			instantDNA.CalibrationBuffer_DutyCycle[pixel] += CalibrationController(instantDNA.DutyCycleBuffer[pixel]);
 			
 			// Prevent overflow
-			if (instantDNA.CalibrationBuffer[pixel] > 2047) instantDNA.CalibrationBuffer[pixel] = 2047;
-			else if (instantDNA.CalibrationBuffer[pixel] < 0) instantDNA.CalibrationBuffer[pixel] = 0;
+			if (instantDNA.CalibrationBuffer_DutyCycle[pixel] > 2047) instantDNA.CalibrationBuffer_DutyCycle[pixel] = 2047;
+			else if (instantDNA.CalibrationBuffer_DutyCycle[pixel] < 0) instantDNA.CalibrationBuffer_DutyCycle[pixel] = 0;
 		}
 
 		// Calculate NumCalibPixels
@@ -281,7 +306,61 @@ void Calib_Array_STM(volatile int *FrameBuf){
 	}
 	SendFrame_RPi(FrameBuf);
 	
+	for(pixel = 0; pixel<1024; pixel++) instantDNA.CalibrationBuffer_Frequency[pixel] = instantDNA.CalibrationBuffer_DutyCycle[pixel];
 	
+}
+
+void Calib_Array_Temp_STM(volatile int *FrameBuf){
+
+	int NumCalibPixels = 0;
+	int NumIter = 0;
+	int pixel;
+	
+	/****************************************/
+	/* Step 2 - Set Calib Values						*/
+	/****************************************/
+	while (NumCalibPixels < NUMPIXELS && NumIter < CALIB_FREQ_MAXITER){
+	
+		FrameBuf = ObtainFrame(FrameBuf, instantDNA.CalibrationBuffer_DutyCycle);
+		CalculateFrameDutyCycle(FrameBuf);
+		NumCalibPixels = 0;
+		
+		for(pixel=0;pixel<NUMPIXELS;pixel++){
+			// IF Pixel is in range or CalibDac is out of range
+			if ((instantDNA.DutyCycleBuffer[pixel] >= (float)CALIB_FREQ_MINLRANGE && 
+					instantDNA.DutyCycleBuffer[pixel] <= (float)CALIB_FREQ_MAXLRANGE) || 
+					instantDNA.CalibrationBuffer_DutyCycle[pixel] <= 0 || 
+					instantDNA.CalibrationBuffer_DutyCycle[pixel] >= 2047){
+				NumCalibPixels++;
+			}
+			
+			// Controller
+			instantDNA.CalibrationBuffer_DutyCycle[pixel] += CalibrationController(instantDNA.DutyCycleBuffer[pixel]);
+			
+			// Prevent overflow
+			if (instantDNA.CalibrationBuffer_DutyCycle[pixel] > 2047) instantDNA.CalibrationBuffer_DutyCycle[pixel] = 2047;
+			else if (instantDNA.CalibrationBuffer_DutyCycle[pixel] < 0) instantDNA.CalibrationBuffer_DutyCycle[pixel] = 0;
+		}
+
+		// Calculate NumCalibPixels
+		NumIter++;	
+		SendFrame_RPi(FrameBuf);
+		
+	}
+	
+}
+
+void LAMPControl(float Temp, volatile int* FrameBuf){
+
+	setup_DAC(DAC_PELTIER);
+	
+	if (instantDNA.DAC_Peltier_Voltage < (float)3.0) instantDNA.DAC_Peltier_Voltage += (float)0.5;
+	else instantDNA.DAC_Peltier_Voltage = (float)0.0;
+	
+}
+
+void PCRControl(volatile int* FrameBuf, int NumCycles){
+	/* ALOKIRA TO POPULATE */
 }
 
 /************************ DRIVERS **************************/
@@ -390,6 +469,12 @@ void setup_DAC(char DAC_Select)
 			HAL_SPI_Transmit(&hspi2, (uint8_t*)&data_to_send, 2, 256);
 			HAL_GPIO_WritePin(GPIOA, REF_E_CS_Pin, GPIO_PIN_SET);
 			break;
+		
+		case DAC_PELTIER:
+			data_to_send = dac_to_binary(voltage_to_dac(instantDNA.DAC_Peltier_Voltage, 5.0, 0));
+			HAL_GPIO_WritePin(GPIOA, PELTIER_CS_Pin, GPIO_PIN_RESET);
+			HAL_SPI_Transmit(&hspi2, (uint8_t*)&data_to_send, 2, 256);
+			HAL_GPIO_WritePin(GPIOA, PELTIER_CS_Pin, GPIO_PIN_SET);
 	}
 }
 
@@ -416,7 +501,7 @@ void setup_Chip(char Enable, char Row, char Column, int DAC_Value, char DAC_Sour
 	
 }
 
-volatile int* ObtainFrame(volatile int* FrameBuf){
+volatile int* ObtainFrame(volatile int* FrameBuf, volatile int* CalibrationBuffer){
 
 	int row;
 	int column;
@@ -429,7 +514,7 @@ volatile int* ObtainFrame(volatile int* FrameBuf){
 		for (row = 0; row < instantDNA.NumRows; row++){
 			
 				// SETUP CHIP
-				setup_Chip(ISFET_ON,row, column, instantDNA.CalibrationBuffer[row+column*NUMROWS],DAC_INTERNAL,DAC_ACTIVE); 
+				setup_Chip(ISFET_ON,row, column, CalibrationBuffer[row+column*NUMROWS],DAC_INTERNAL,DAC_ACTIVE); 
 				while (PixTimeout == 0x00){} // Wait until end of pix measurement
 					
 				// Store variables

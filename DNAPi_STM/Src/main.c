@@ -110,6 +110,8 @@ int main(void)
   MX_TIM5_Init();
   MX_DAC_Init();
   MX_TIM3_Init();
+	
+
   /* USER CODE BEGIN 2 */
 	/* Initialize platform and all DAC to Default values */
 	InitPlatform();
@@ -118,7 +120,9 @@ int main(void)
 	setup_DAC(DAC_VBIAS);
 	setup_DAC(DAC_IOTA);
 	setup_DAC(DAC_REFELEC);
-  /* USER CODE END 2 */
+	setup_DAC(DAC_PELTIER);
+
+	/* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -171,7 +175,7 @@ int main(void)
 				break;
 			
 			case OBTAIN_FRAME:
-				ObtainAndSendFrame(FrameBuffer);
+				ObtainAndSendFrame_Chem(FrameBuffer);
 				tx[0] = 0xAA;
 				tx[1] = 0x00;
 				tx[2] = 0x00;
@@ -184,13 +188,27 @@ int main(void)
 				break;
 			
 			case CALIB_ARRAY:
-				Calib_Array_STM(FrameBuffer);
+				Calib_Array_Chem_STM(FrameBuffer);
 				break;
 
 			// DEMO METHOD!
 			case INCREASE_PH:
 				instantDNA.DAC_RefElect_Voltage = instantDNA.DAC_RefElect_Voltage + (float)0.01;
 				setup_DAC(DAC_REFELEC);
+				break;
+			
+			case LAMP_CONTROL:
+				instantDNA.Platform_Temp = *(float *)&RPi_Param;
+				LAMPControl(instantDNA.Platform_Temp, FrameBuffer);
+				break;
+			
+			case PCR_CONTROL:
+				instantDNA.Platform_Temp = *(float *)&RPi_Param;
+				PCRControl(FrameBuffer, 1);
+				break;
+			
+			case OBTAIN_TEMP_FRAME:
+				ObtainAndSendFrame_Temp(FrameBuffer);
 				break;
 			
 			default:
@@ -278,16 +296,17 @@ static void MX_DAC_Init(void)
   */
   sConfig.DAC_Trigger = DAC_TRIGGER_NONE;
   sConfig.DAC_OutputBuffer = DAC_OUTPUTBUFFER_ENABLE;
+	
   if (HAL_DAC_ConfigChannel(&hdac, &sConfig, DAC_CHANNEL_1) != HAL_OK)
   {
     Error_Handler();
   }
   /* USER CODE BEGIN DAC_Init 2 */
-	/*HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_12B_L, 0xF0000000);
+	HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_12B_R, voltage_to_dac(0.0,3.3,0.0));
 	if (HAL_DAC_Start(&hdac, DAC_CHANNEL_1) != HAL_OK)
   {
     Error_Handler();
-  }*/
+  }
   /* USER CODE END DAC_Init 2 */
 
 }
