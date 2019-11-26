@@ -139,14 +139,18 @@ void PCRControl(volatile int*, int);
 void WaitSPICommand(void);
 uint16_t voltage_to_dac(float voltage, float max, float min);
 uint16_t dac_to_binary(uint16_t dac_value);
+float freq_to_temp(volatile int*);
 void setup_DAC(char DAC_Select);
 void setup_Chip(char Enable, char Row, char Column, int DAC_Value, char DAC_Source, char DAC_Debug);
 void Start_Timers(void);
 void Stop_Timers(void);
 volatile int* ObtainFrame(volatile int*, volatile int*);
+volatile int* ObtainPixel(volatile int*, int, int, volatile int*);
 void SendFrame_RPi(volatile int*);
+void SendPixel_RPi(volatile int*);
 void CalculateFrameDutyCycle(volatile int*);
 int CalibrationController(float);
+void Send_EndOfAction(volatile int*);
 
 /*********************************************************************/
 
@@ -176,7 +180,7 @@ void ObtainAndSendFrame_Chem(volatile int *FrameBuf){
 void ObtainAndSendFrame_Temp(volatile int *FrameBuf){
 
 	Calib_Array_Temp_STM(FrameBuf);
-	FrameBuf = ObtainFrame(FrameBuf, instantDNA.CalibrationBuffer_DutyCycle);
+	FrameBuf = ObtainFrame(FrameBuf, instantDNA.CalibrationBuffer_Frequency);
 	SendFrame_RPi(FrameBuf);
 
 }
@@ -191,7 +195,6 @@ void TestOnChipDAC_Platform(void){
 		setup_Chip(ISFET_OFF,0, 0, DAC_Value,DAC_INTERNAL,DAC_DEBUGMODE);
 		HAL_Delay(1);
 	}
-
 }
 
 void ObtainCharactCurves(volatile int *FrameBuf){
@@ -204,9 +207,8 @@ void ObtainCharactCurves(volatile int *FrameBuf){
 		FrameBuf = ObtainFrame(FrameBuf, instantDNA.CalibrationBuffer_DutyCycle); // Second frame for stabilisation
 		SendFrame_RPi(FrameBuf);
 		instantDNA.DAC_RefElect_Voltage += (float)0.025;
-		
 	}
-
+	
 }
 
 void Calib_Array_Chem_STM(volatile int *FrameBuf){
@@ -221,10 +223,6 @@ void Calib_Array_Chem_STM(volatile int *FrameBuf){
 	int NumPixels_On = 0;
 	int Flag = 0;
 	float RefStep;
-	
-	/****************************************/
-	/* Step 0 - Initialise Variables				*/
-	/****************************************/
 	
 	/****************************************/
 	/* Step 1 - Set Ideal Ref								*/
@@ -301,10 +299,7 @@ void Calib_Array_Chem_STM(volatile int *FrameBuf){
 	}
 	
 	// SEND End Of Action
-	for(pixel=0; pixel<2048; pixel++){
-		FrameBuf[pixel] = 0xAAAAAAAA;
-	}
-	SendFrame_RPi(FrameBuf);
+	Send_EndOfAction(FrameBuf);
 	
 	for(pixel = 0; pixel<1024; pixel++) instantDNA.CalibrationBuffer_Frequency[pixel] = instantDNA.CalibrationBuffer_DutyCycle[pixel];
 	
@@ -321,7 +316,7 @@ void Calib_Array_Temp_STM(volatile int *FrameBuf){
 	/****************************************/
 	while (NumCalibPixels < NUMPIXELS && NumIter < CALIB_FREQ_MAXITER){
 	
-		FrameBuf = ObtainFrame(FrameBuf, instantDNA.CalibrationBuffer_DutyCycle);
+		FrameBuf = ObtainFrame(FrameBuf, instantDNA.CalibrationBuffer_Frequency);
 		CalculateFrameDutyCycle(FrameBuf);
 		NumCalibPixels = 0;
 		
@@ -329,22 +324,22 @@ void Calib_Array_Temp_STM(volatile int *FrameBuf){
 			// IF Pixel is in range or CalibDac is out of range
 			if ((instantDNA.DutyCycleBuffer[pixel] >= (float)CALIB_FREQ_MINLRANGE && 
 					instantDNA.DutyCycleBuffer[pixel] <= (float)CALIB_FREQ_MAXLRANGE) || 
-					instantDNA.CalibrationBuffer_DutyCycle[pixel] <= 0 || 
-					instantDNA.CalibrationBuffer_DutyCycle[pixel] >= 2047){
+					instantDNA.CalibrationBuffer_Frequency[pixel] <= 0 || 
+					instantDNA.CalibrationBuffer_Frequency[pixel] >= 2047){
 				NumCalibPixels++;
 			}
 			
 			// Controller
-			instantDNA.CalibrationBuffer_DutyCycle[pixel] += CalibrationController(instantDNA.DutyCycleBuffer[pixel]);
+			instantDNA.CalibrationBuffer_Frequency[pixel] += CalibrationController(instantDNA.DutyCycleBuffer[pixel]);
 			
 			// Prevent overflow
-			if (instantDNA.CalibrationBuffer_DutyCycle[pixel] > 2047) instantDNA.CalibrationBuffer_DutyCycle[pixel] = 2047;
-			else if (instantDNA.CalibrationBuffer_DutyCycle[pixel] < 0) instantDNA.CalibrationBuffer_DutyCycle[pixel] = 0;
+			if (instantDNA.CalibrationBuffer_Frequency[pixel] > 2047) instantDNA.CalibrationBuffer_Frequency[pixel] = 2047;
+			else if (instantDNA.CalibrationBuffer_Frequency[pixel] < 0) instantDNA.CalibrationBuffer_Frequency[pixel] = 0;
 		}
 
 		// Calculate NumCalibPixels
 		NumIter++;	
-		SendFrame_RPi(FrameBuf);
+		//SendFrame_RPi(FrameBuf);
 		
 	}
 	
@@ -352,10 +347,15 @@ void Calib_Array_Temp_STM(volatile int *FrameBuf){
 
 void LAMPControl(float Temp, volatile int* FrameBuf){
 
-	setup_DAC(DAC_PELTIER);
+	int j;
 	
-	if (instantDNA.DAC_Peltier_Voltage < (float)3.0) instantDNA.DAC_Peltier_Voltage += (float)0.5;
-	else instantDNA.DAC_Peltier_Voltage = (float)0.0;
+	for(j = 0; j<10; j++) ObtainAndSendFrame_Temp(FrameBuf);
+	instantDNA.DAC_Peltier_Voltage = (float)2.5;
+	setup_DAC(DAC_PELTIER);
+	for(j = 0; j<40; j++) ObtainAndSendFrame_Temp(FrameBuf);
+	Send_EndOfAction(FrameBuf);
+	instantDNA.DAC_Peltier_Voltage = (float)0.0;
+	setup_DAC(DAC_PELTIER);
 	
 }
 
@@ -536,10 +536,41 @@ volatile int* ObtainFrame(volatile int* FrameBuf, volatile int* CalibrationBuffe
 	
 }
 
+volatile int* ObtainPixel(volatile int* FrameBuf, int row, int column, volatile int* CalibrationBuffer){
+	
+	Start_Timers(); // Start Timers
+	setup_Chip(ISFET_ON,row, column, CalibrationBuffer[row+column*NUMROWS],DAC_INTERNAL,DAC_ACTIVE); 
+	while (PixTimeout == 0x00){} // Wait until end of pix measurement
+	FrameBuf[0] = TimerCh2.TicksHigh; 
+	FrameBuf[1] = TimerCh2.TicksPeriod;
+
+	// Reset Values	
+	PixTimeout = 0;
+	TimerCh2.TicksHigh = 0;
+	TimerCh2.TicksPeriod = 0;
+	TimerCh2.NumSamples = 0;
+	TimerCh2.ValidSample = 0;
+
+	Stop_Timers();
+	return FrameBuf;
+	
+}
+
 void SendFrame_RPi(volatile int* FrameBuf){
 
 	// ASSERT RPi IRQ WHEN FRAME DONE
 	HAL_SPI_TransmitReceive_IT(&hspi1, (uint8_t *)FrameBuf, (uint8_t *)FrameBuf, 8192);
+	HAL_GPIO_WritePin(IRQ_Frame_GPIO_Port, IRQ_Frame_Pin, GPIO_PIN_SET);
+	while (SPIMessage_Available == 0x00){}
+	SPIMessage_Available = 0;
+	HAL_GPIO_WritePin(IRQ_Frame_GPIO_Port, IRQ_Frame_Pin, GPIO_PIN_RESET);
+
+}
+
+void SendPixel_RPi(volatile int* FrameBuf){
+
+	// ASSERT RPi IRQ WHEN FRAME DONE
+	HAL_SPI_TransmitReceive_IT(&hspi1, (uint8_t *)FrameBuf, (uint8_t *)FrameBuf, 8);
 	HAL_GPIO_WritePin(IRQ_Frame_GPIO_Port, IRQ_Frame_Pin, GPIO_PIN_SET);
 	while (SPIMessage_Available == 0x00){}
 	SPIMessage_Available = 0;
@@ -563,21 +594,18 @@ int CalibrationController(float DutyCycle){
 	
 	// K Controller - Not working yet
 	DeltaDAC = (int)((float)CONTROLLER_KP * ((float)0.5 - DutyCycle));
-
-	// If-statements based
-	/*if (DutyCycle < (float) 0.05) DeltaDAC = 200;
-	else if (DutyCycle < (float) 0.25) DeltaDAC = 50;
-	else if (DutyCycle < (float) 0.35) DeltaDAC = 10;
-	else if (DutyCycle < (float) 0.48) DeltaDAC = 5;
-	else if (DutyCycle < (float) 0.5) DeltaDAC =  1;
-	else if (DutyCycle > (float) 0.95) DeltaDAC = (-200);
-	else if (DutyCycle > (float) 0.75) DeltaDAC = (-50);
-	else if (DutyCycle > (float) 0.65) DeltaDAC = (-10);
-	else if (DutyCycle > (float) 0.52) DeltaDAC = (-5);
-	else if (DutyCycle > (float) 0.5) DeltaDAC = (-1);
-	else DeltaDAC = 0;*/
-	
 	return DeltaDAC;
+	
+}
+
+void Send_EndOfAction(volatile int* FrameBuf){
+
+	int pixel;
+	
+	for(pixel=0; pixel<2048; pixel++){
+		FrameBuf[pixel] = 0xAAAAAAAA;
+	}
+	SendFrame_RPi(FrameBuf);
 	
 }
 
