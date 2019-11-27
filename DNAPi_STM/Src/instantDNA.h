@@ -37,7 +37,7 @@ extern "C" {
 #define INCREASE_PH				0x09
 #define LAMP_CONTROL			0x0A
 #define PCR_CONTROL				0x0B
-#define OBTAIN_TEMP_FRAME 0x0C
+#define TEMP_CONTROL 			0x0C
 
 #define PIXEL_TIMEOUT		84000 // -> 1ms @ 84MHz
 
@@ -58,6 +58,8 @@ extern "C" {
 #define CALIB_FREQ_MAXITER		10
 #define CALIB_FREQ_MINLRANGE	0.48
 #define CALIB_FREQ_MAXLRANGE	0.52
+#define TEMP_ROW							16
+#define TEMP_COLUMN						16
 #define CONTROLLER_KP					175
 #define ON_LIMIT							0.85
 #define OFF_LIMIT							0.15
@@ -133,6 +135,7 @@ void ObtainAndSendFrame_Chem(volatile int*);
 void ObtainAndSendFrame_Temp(volatile int*);
 void Calib_Array_Chem_STM(volatile int*);
 void Calib_Array_Temp_STM(volatile int*);
+void TempControl(float, volatile int*);
 void LAMPControl(float, volatile int*);
 void PCRControl(volatile int*, int);
 /******* DRIVERS **************************/
@@ -149,8 +152,11 @@ volatile int* ObtainPixel(volatile int*, int, int, volatile int*);
 void SendFrame_RPi(volatile int*);
 void SendPixel_RPi(volatile int*);
 void CalculateFrameDutyCycle(volatile int*);
+void CalculatePixelDutyCycle(volatile int*);
 int CalibrationController(float);
-void Send_EndOfAction(volatile int*);
+void Send_EndOfAction_Frame(volatile int*);
+void Send_EndOfAction_Pixel(volatile int*);
+void Delay_1ms(void);
 
 /*********************************************************************/
 
@@ -180,8 +186,8 @@ void ObtainAndSendFrame_Chem(volatile int *FrameBuf){
 void ObtainAndSendFrame_Temp(volatile int *FrameBuf){
 
 	Calib_Array_Temp_STM(FrameBuf);
-	FrameBuf = ObtainFrame(FrameBuf, instantDNA.CalibrationBuffer_Frequency);
-	SendFrame_RPi(FrameBuf);
+	FrameBuf = ObtainPixel(FrameBuf, TEMP_ROW, TEMP_COLUMN, instantDNA.CalibrationBuffer_Frequency);
+	SendPixel_RPi(FrameBuf);
 
 }
 
@@ -299,7 +305,7 @@ void Calib_Array_Chem_STM(volatile int *FrameBuf){
 	}
 	
 	// SEND End Of Action
-	Send_EndOfAction(FrameBuf);
+	Send_EndOfAction_Frame(FrameBuf);
 	
 	for(pixel = 0; pixel<1024; pixel++) instantDNA.CalibrationBuffer_Frequency[pixel] = instantDNA.CalibrationBuffer_DutyCycle[pixel];
 	
@@ -307,63 +313,63 @@ void Calib_Array_Chem_STM(volatile int *FrameBuf){
 
 void Calib_Array_Temp_STM(volatile int *FrameBuf){
 
-	int NumCalibPixels = 0;
+	char CalibDone = 0; 
 	int NumIter = 0;
-	int pixel;
+	const int TempPixel = TEMP_ROW+TEMP_COLUMN*NUMROWS;
 	
 	/****************************************/
 	/* Step 2 - Set Calib Values						*/
 	/****************************************/
-	while (NumCalibPixels < NUMPIXELS && NumIter < CALIB_FREQ_MAXITER){
+	while (!CalibDone && NumIter < CALIB_FREQ_MAXITER){
 	
-		FrameBuf = ObtainFrame(FrameBuf, instantDNA.CalibrationBuffer_Frequency);
-		CalculateFrameDutyCycle(FrameBuf);
-		NumCalibPixels = 0;
+		FrameBuf = ObtainPixel(FrameBuf, TEMP_ROW, TEMP_COLUMN, instantDNA.CalibrationBuffer_Frequency);
+		CalculatePixelDutyCycle(FrameBuf);
 		
-		for(pixel=0;pixel<NUMPIXELS;pixel++){
-			// IF Pixel is in range or CalibDac is out of range
-			if ((instantDNA.DutyCycleBuffer[pixel] >= (float)CALIB_FREQ_MINLRANGE && 
-					instantDNA.DutyCycleBuffer[pixel] <= (float)CALIB_FREQ_MAXLRANGE) || 
-					instantDNA.CalibrationBuffer_Frequency[pixel] <= 0 || 
-					instantDNA.CalibrationBuffer_Frequency[pixel] >= 2047){
-				NumCalibPixels++;
-			}
+		if ((instantDNA.DutyCycleBuffer[0] >= (float)CALIB_FREQ_MINLRANGE && 
+				instantDNA.DutyCycleBuffer[0] <= (float)CALIB_FREQ_MAXLRANGE) || 
+				instantDNA.CalibrationBuffer_Frequency[TempPixel] <= 0 || 
+				instantDNA.CalibrationBuffer_Frequency[TempPixel] >= 2047){
+			CalibDone = 1;
+		}
 			
 			// Controller
-			instantDNA.CalibrationBuffer_Frequency[pixel] += CalibrationController(instantDNA.DutyCycleBuffer[pixel]);
-			
-			// Prevent overflow
-			if (instantDNA.CalibrationBuffer_Frequency[pixel] > 2047) instantDNA.CalibrationBuffer_Frequency[pixel] = 2047;
-			else if (instantDNA.CalibrationBuffer_Frequency[pixel] < 0) instantDNA.CalibrationBuffer_Frequency[pixel] = 0;
-		}
+		instantDNA.CalibrationBuffer_Frequency[TempPixel] += CalibrationController(instantDNA.DutyCycleBuffer[0]);
+		
+		// Prevent overflow
+		if (instantDNA.CalibrationBuffer_Frequency[TempPixel] > 2047) instantDNA.CalibrationBuffer_Frequency[TempPixel] = 2047;
+		else if (instantDNA.CalibrationBuffer_Frequency[TempPixel] < 0) instantDNA.CalibrationBuffer_Frequency[TempPixel] = 0;
 
 		// Calculate NumCalibPixels
 		NumIter++;	
 		//SendFrame_RPi(FrameBuf);
-		
 	}
-	
 }
 
-void LAMPControl(float Temp, volatile int* FrameBuf){
-
+void TempControl(float Temp, volatile int* FrameBuf){
+	
 	int j;
 	
 	for(j = 0; j<10; j++) ObtainAndSendFrame_Temp(FrameBuf);
 	instantDNA.DAC_Peltier_Voltage = (float)2.5;
 	setup_DAC(DAC_PELTIER);
-	for(j = 0; j<40; j++) ObtainAndSendFrame_Temp(FrameBuf);
-	Send_EndOfAction(FrameBuf);
+	for(j = 0; j<4000; j++) ObtainAndSendFrame_Temp(FrameBuf);
 	instantDNA.DAC_Peltier_Voltage = (float)0.0;
 	setup_DAC(DAC_PELTIER);
+	Send_EndOfAction_Pixel(FrameBuf);
 	
 }
 
+void LAMPControl(float Temp, volatile int* FrameBuf){
+	Send_EndOfAction_Frame(FrameBuf);
+}
+
 void PCRControl(volatile int* FrameBuf, int NumCycles){
+	Send_EndOfAction_Frame(FrameBuf);
 	/* ALOKIRA TO POPULATE */
 }
 
 /************************ DRIVERS **************************/
+
 
 void Start_Timers(void){
 
@@ -588,6 +594,12 @@ void CalculateFrameDutyCycle(volatile int* FrameBuf){
 	
 }
 
+void CalculatePixelDutyCycle(volatile int* FrameBuf){
+
+	instantDNA.DutyCycleBuffer[0] = (float)FrameBuf[0] / (float)FrameBuf[1];
+	
+}
+
 int CalibrationController(float DutyCycle){
 
 	int DeltaDAC;
@@ -598,14 +610,38 @@ int CalibrationController(float DutyCycle){
 	
 }
 
-void Send_EndOfAction(volatile int* FrameBuf){
+void Send_EndOfAction_Frame(volatile int* FrameBuf){
 
-	int pixel;
-	
-	for(pixel=0; pixel<2048; pixel++){
-		FrameBuf[pixel] = 0xAAAAAAAA;
-	}
+	FrameBuf[0] = 0xAAAAAAAA;
+	FrameBuf[1] = 0xAAAAAAAA;
+	Delay_1ms();
 	SendFrame_RPi(FrameBuf);
+	
+}
+
+void Send_EndOfAction_Pixel(volatile int* FrameBuf){
+
+	FrameBuf[0] = 0xAAAAAAAA;
+	FrameBuf[1] = 0xAAAAAAAA;
+	Delay_1ms();
+	SendPixel_RPi(FrameBuf);
+	
+}
+
+void Delay_1ms(){
+
+	Start_Timers(); // Start Timers
+
+	while (PixTimeout == 0x00){} // Wait until end of pix measurement - Aprox 1ms
+					
+	// Restart variables
+	PixTimeout = 0;
+	TimerCh2.TicksHigh = 0;
+	TimerCh2.TicksPeriod = 0;
+	TimerCh2.NumSamples = 0;
+	TimerCh2.ValidSample = 0;
+
+	Stop_Timers();
 	
 }
 

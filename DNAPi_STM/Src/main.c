@@ -207,8 +207,9 @@ int main(void)
 				PCRControl(FrameBuffer, 1);
 				break;
 			
-			case OBTAIN_TEMP_FRAME:
-				ObtainAndSendFrame_Temp(FrameBuffer);
+			case TEMP_CONTROL:
+				instantDNA.Platform_Temp = *(float *)&RPi_Param;
+				TempControl(instantDNA.Platform_Temp, FrameBuffer);
 				break;
 			
 			default:
