@@ -110,8 +110,6 @@ int main(void)
   MX_TIM5_Init();
   MX_DAC_Init();
   MX_TIM3_Init();
-	
-
   /* USER CODE BEGIN 2 */
 	/* Initialize platform and all DAC to Default values */
 	InitPlatform();
@@ -122,7 +120,7 @@ int main(void)
 	setup_DAC(DAC_REFELEC);
 	setup_DAC(DAC_PELTIER);
 
-	/* USER CODE END 2 */
+  /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -207,8 +205,13 @@ int main(void)
 				PCRControl(FrameBuffer, 1);
 				break;
 			
-			case OBTAIN_TEMP_FRAME:
-				ObtainAndSendFrame_Temp(FrameBuffer);
+			case TEMP_CONTROL:
+				instantDNA.Platform_Temp = *(float *)&RPi_Param;
+				TempControl(instantDNA.Platform_Temp, PixelBuffer);
+				break;
+			
+			case TEMP_CHARACT:
+				TempCharact(FrameBuffer);
 				break;
 			
 			default:
@@ -296,7 +299,6 @@ static void MX_DAC_Init(void)
   */
   sConfig.DAC_Trigger = DAC_TRIGGER_NONE;
   sConfig.DAC_OutputBuffer = DAC_OUTPUTBUFFER_ENABLE;
-	
   if (HAL_DAC_ConfigChannel(&hdac, &sConfig, DAC_CHANNEL_1) != HAL_OK)
   {
     Error_Handler();
@@ -481,7 +483,7 @@ static void MX_TIM3_Init(void)
   htim3.Instance = TIM3;
   htim3.Init.Prescaler = 1;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 42000;
+  htim3.Init.Period = 4200;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
@@ -649,42 +651,35 @@ void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi)
 	
 }
 
-void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
-{
-	
-	// CHANNEL 2 INTERRUPTION
-	if (htim == &htim2 && !PixTimeout){
-		if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_1)
-		{
-			if (TimerCh2.ValidSample){
-				/* Get the input capture value */
-				if (HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_1) > HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_2)) {}
-				else{
-					TimerCh2.TicksHigh += HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_1);
-					TimerCh2.TicksPeriod += HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_2);
-					TimerCh2.NumSamples++;
-				}
-			}
-			else TimerCh2.ValidSample = 1;
-		}
-	}
-	// CHANNEL 5 INTERRUPTION
-	if (htim == &htim5){}
-	// TO BE DONE
-	
-}
-
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 
-	PixTimeout = 1;
-	if (TimerCh2.NumSamples == 0){
-		TimerCh2.TicksPeriod = 84000;
-		if(HAL_GPIO_ReadPin(PWM_GPIO_Port, PWM_Pin) == 0x01) TimerCh2.TicksHigh = TimerCh2.TicksPeriod;
-		else TimerCh2.TicksHigh = 0;
+	if (!TimerCh2.ActiveMeas) return;
+
+	// Read Registers from all timers	
+	TimerCh2.TicksHigh_Sample = HAL_TIM_ReadCapturedValue(&htim2, TIM_CHANNEL_1);
+	TimerCh2.TicksPeriod_Sample = HAL_TIM_ReadCapturedValue(&htim2, TIM_CHANNEL_2);
+	
+	// Compare registers with previous results
+	// If Different -> Sample
+	if ((TimerCh2.TicksHigh_Sample != TimerCh2.Prev_TicksHigh_Sample) && (TimerCh2.TicksPeriod_Sample != TimerCh2.Prev_TicksPeriod_Sample)) {
+		
+		// If sample is first = ignore - potentially corrupted
+		if (!TimerCh2.FirstIgnored) {TimerCh2.FirstIgnored = 1; return;}
+		
+		// If sample is faulty - discard
+		if (TimerCh2.TicksHigh_Sample > TimerCh2.TicksPeriod_Sample) return;
+		else TimerCh2.ActiveMeas = 0;
 	}
+	
+	// If Equal -> Note and wait one more
 	else {
-		TimerCh2.TicksPeriod = TimerCh2.TicksPeriod / TimerCh2.NumSamples;
-		TimerCh2.TicksHigh = TimerCh2.TicksHigh / TimerCh2.NumSamples;
+		TimerCh2.NumIter++;
+		if (TimerCh2.NumIter > 20) {
+			TimerCh2.TicksPeriod_Sample = 84000;
+			if(HAL_GPIO_ReadPin(PWM_GPIO_Port, PWM_Pin) == 0x01) TimerCh2.TicksHigh_Sample = TimerCh2.TicksPeriod_Sample;
+			else TimerCh2.TicksHigh_Sample = 0;
+			TimerCh2.ActiveMeas = 0;
+		}
 	}
 	
 }
