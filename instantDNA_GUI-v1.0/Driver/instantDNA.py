@@ -2,6 +2,7 @@ import pigpio
 import time
 import struct
 import numpy as np
+from datetime import datetime
 
 
 class instantDNA:
@@ -11,18 +12,21 @@ class instantDNA:
 		self.SamplingFreq = 84e6
 		self.State = "Ready"
 		self.cb = self.pi.callback(7,pigpio.RISING_EDGE, self.isr_frame)
+		self.now = datetime.now()
+
 		self.StoredAvFrames_DutyCycle = list()
+		self.StoredAvFrames_Frequency = list()
+		self.StoredPixels_DutyCycle = list()
+		self.StoredPixels_Frequency = list()
+		self.CalibValues = list()
+
 		self.RunningDNATest = 0
 		self.Patient_Diagnosis = False
 		self.HelloWorld()
 
-	def HelloWorld(self):
-		print("Welcome to InstantDNA!")
-
-	def CloseSPI(self):
-		self.pi.spi_close(self.spi_h)
-		self.pi.stop()
-
+	#########################################################
+	# DNA PROTOCOL ##########################################
+	#########################################################	
 	def DNATest(self):
 		# STEP 1 - HEAT THE SOLUTION #		
 		if self.State == "Ready":
@@ -45,15 +49,17 @@ class instantDNA:
 			if (self.Patient_Diagnosis == True):
 				self.FakepH()
 			self.RequestFrame()
+	######################################################
 
-			
+	######################################################
+	# INTERRUPT ##########################################
+	######################################################			
 	def isr_frame(self, gpio, level, tick):
 		if self.State == "Ready":
 			pass
 		elif self.State == "RequestFrame":
 			self.ReceiveFrame()
 			self.ProcessFrame()
-			self.StoreAverageFrame()
 			self.PlotFrame()
 			if self.RunningDNATest == 1:
 				self.State = "RequestFrame"
@@ -63,49 +69,82 @@ class instantDNA:
 
 		elif self.State == "CharactCurves":
 			self.ReceiveFrame()
-			self.ProcessFrame()
-			self.StoreAverageFrame()
-			self.PlotFrame()
+			if not self.CheckEndOfMessage():
+				self.ProcessFrame()
+				self.PlotFrame()
+			else:
+				self.Close_Storage()
+				self.State = "Ready"
 
 		elif self.State == "CalibArray":
 			self.ReceiveFrame()
-			if not self.CheckEndOfMessage():# CHECK IF SENT MESSAGE IS EoM			
+			if not self.CheckEndOfMessage():			
 				self.ProcessFrame()
-				self.StoreAverageFrame()
 				self.PlotFrame()
 			else:
 				if self.RunningDNATest == 1:
 					self.State = "RequestFrame"
 					self.DNATest()
 				else:
+					self.Close_Storage()
 					self.State = "Ready"
-		elif self.State == "MeasTemp":
+
+		elif self.State == "TempControl":
+			self.ReceivePixel()
+			if not self.CheckEndOfMessage():
+				self.ProcessPixel()
+				self.PlotTempPixel()
+			else:
+				self.Close_Storage()
+				self.State = "Ready"
+
+		elif self.State == "LAMP":
 			self.ReceiveFrame()
-			self.ProcessFrame()
-			self.StoreAverageFrame()
-			self.PlotFrame()
-			self.State = "Ready"	
+			if not self.CheckEndOfMessage():
+				self.ProcessFrame()
+				self.PlotTempFrame()
+			else:
+				self.Close_Storage()
+				self.State = "Ready"
 
+		elif self.State == "PCR":
+			self.ReceiveFrame()
+			if not self.CheckEndOfMessage():
+				self.ProcessFrame()
+				self.PlotTempFrame()
+			else:
+				self.Close_Storage()
+				self.State = "Ready"
 
+		elif self.State == "TempCharact":
+			self.ReceiveFrameAndCalib()
+			if not self.CheckEndOfMessage():
+				self.ProcessFrame()
+				self.SaveLineCSV(self.FileHandle, self.DutyCycle + self.StoredAvFrames_DutyCycle[-1] + self.Frequency + self.StoredAvFrames_Frequency[-1] + self.CalibValues)
+				self.PlotTempFrame()
+			else:
+				self.Close_Storage()
+				self.State = "Ready"
+	######################################################	
+
+	######################################################
+	# STM ACTIONS ########################################
+	######################################################
 	def Setup_DAC_VRef_Value(self, DAC_Value):
 		spi_message = [1] + list(bytearray(struct.pack("f",DAC_Value)))
 		(count, data) = self.pi.spi_xfer(self.spi_h, spi_message)
-		# NEED TO ADD WAITING TIME
 
 	def Setup_DAC_VBias_Value(self, DAC_Value):
 		spi_message = [2] + list(bytearray(struct.pack("f",DAC_Value)))
 		(count, data) = self.pi.spi_xfer(self.spi_h, spi_message)
-		# NEED TO ADD WAITING TIME
 
 	def Setup_DAC_IOTA_Value(self, DAC_Value):
 		spi_message = [3] + list(bytearray(struct.pack("f",DAC_Value)))
 		(count, data) = self.pi.spi_xfer(self.spi_h, spi_message)
-		# NEED TO ADD WAITING TIME
 
 	def Setup_DAC_RefElect_Value(self, DAC_Value):
 		spi_message = [4] + list(bytearray(struct.pack("f",DAC_Value)))
 		(count, data) = self.pi.spi_xfer(self.spi_h, spi_message)
-		# NEED TO ADD WAITING TIME
 
 	def Test_OnChipDAC(self):
 		spi_message = [5] + list(bytearray(struct.pack("f",1.0)))
@@ -113,81 +152,138 @@ class instantDNA:
 		
 	def RequestFrame(self):
 		self.State = "RequestFrame"		
+		self.Init_Storage()		
 		spi_message = [6] + list(bytearray(struct.pack("f",1.0)))
 		(count, data) = self.pi.spi_xfer(self.spi_h, spi_message)
-		#print ("Bytes transferred: " + str(count))
-		#print ("Data recieved:")
-		#print (list(data))
 
 	def ObtainCharactCurves(self):
 		self.State = "CharactCurves"
+		self.Init_Storage()		
 		spi_message = [7] + list(bytearray(struct.pack("f",1.0)))
 		(count, data) = self.pi.spi_xfer(self.spi_h, spi_message)
-		#print ("Bytes transferred: " + str(count))
-		#print ("Data recieved:")
-		#print (list(data))
 
-	def CalibArray(self): # Need to include 2D plot
+	def CalibArray(self):
 		self.State = "CalibArray"
+		self.Init_Storage()
 		spi_message = [8] + list(bytearray(struct.pack("f",1.0)))
 		(count, data) = self.pi.spi_xfer(self.spi_h, spi_message)
-		#print ("Bytes transferred: " + str(count))
-		#print ("Data recieved:")
-		#print (list(data))
 
-	def SetLAMPTemp(self):
+	def LAMPControl(self):
+		self.State = "LAMP"
+		self.Init_Storage()
 		spi_message = [10] + list(bytearray(struct.pack("f",63.0)))
 		(count, data) = self.pi.spi_xfer(self.spi_h, spi_message)
-		print ("Bytes transferred: " + str(count))
-		print ("Data recieved:")
-		print (list(data))
 
 	def PCRControl(self):
+		self.State = "PCR"
+		self.Init_Storage()
 		spi_message = [11] + list(bytearray(struct.pack("f",63.0)))
 		(count, data) = self.pi.spi_xfer(self.spi_h, spi_message)
-		#print ("Bytes transferred: " + str(count))
-		#print ("Data recieved:")
-		#print (list(data))
 
-	def MeasTemp(self):
-		self.State = "MeasTemp"
+	def TempControl(self):
+		self.State = "TempControl"
+		self.Init_Storage()
 		spi_message = [12] + list(bytearray(struct.pack("f",63.0)))
 		(count, data) = self.pi.spi_xfer(self.spi_h, spi_message)
 		#print ("Bytes transferred: " + str(count))
 		#print ("Data recieved:")
 		#print (list(data))
 
+	def TempCharact(self):
+		self.State = "TempCharact"
+		self.Init_Storage()
+		spi_message = [13] + list(bytearray(struct.pack("f",63.0)))
+		(count, data) = self.pi.spi_xfer(self.spi_h, spi_message)
+	######################################################
+
 	def ReceiveFrame(self):
 		(count,data) = self.pi.spi_xfer(self.spi_h, [0x00, 0x00, 0x00,0x00]*2048)
 		data = struct.unpack("<" + ("L"*2048),data)
 		self.ticks_high = data[::2]
 		self.ticks_period = data[1::2]
+		print(data)
 
-	def CheckEndOfMessage(self):
-		for x in self.ticks_high:
-			if x!=0xAAAAAAAA:
-				return False
-		for x in self.ticks_period:
-			if x!=0xAAAAAAAA:
-				return False		
-		return True
+	def ReceivePixel(self):
+		(count,data) = self.pi.spi_xfer(self.spi_h, [0x00, 0x00, 0x00,0x00]*2)
+		data = struct.unpack("<" + ("L"*2),data)
+		self.ticks_high = data[0]
+		self.ticks_period = data[1]
+
+	def ReceiveFrameAndCalib(self):
+		(count,data) = self.pi.spi_xfer(self.spi_h, [0x00, 0x00, 0x00,0x00]*3072)
+		data = struct.unpack("<" + ("L"*3072),data)
+		self.ticks_high = data[:2048:2]
+		self.ticks_period = data[1:2048:2]
+		self.CalibValues = list(data[2048::1])
+		print ("Bytes transferred: " + str(count))
+		print ("Data recieved:")
+		print (list(data))
 
 	def ProcessFrame(self):
 		self.DutyCycle = [i / j for i, j in zip(self.ticks_high, self.ticks_period)]
 		self.Frequency = [self.SamplingFreq / j for j in self.ticks_period]
+		self.StoredAvFrames_DutyCycle.append(sum(self.DutyCycle)/len(self.DutyCycle))	
+		self.StoredAvFrames_Frequency.append(sum(self.Frequency)/len(self.Frequency))
+#		self.SaveLineCSV(self.FileHandle, self.DutyCycle + self.StoredAvFrames_DutyCycle[-1] + self.Frequency + self.StoredAvFrames_Frequency[-1])
 		print(self.DutyCycle[528])
+
+	def ProcessPixel(self):
+		Line = list()		
+		self.DutyCycle = (self.ticks_high / self.ticks_period)
+		self.Frequency = (self.SamplingFreq / self.ticks_period)
+		self.StoredPixels_DutyCycle.append(self.DutyCycle)	
+		self.StoredPixels_Frequency.append(self.Frequency)
+		Line.append(self.DutyCycle)
+		Line.append(self.Frequency)
+		self.SaveLineCSV(self.FileHandle, Line)
+		print("DC: " + str(self.DutyCycle) + " Freq: " + str(self.Frequency))
+
+	def CheckEndOfMessage(self):
+		if type(self.ticks_high) is tuple:
+			if self.ticks_high[0]!=0xAAAAAAAA or self.ticks_period[0]!=0xAAAAAAAA:
+				return False
+		else:
+			if self.ticks_high!=0xAAAAAAAA or self.ticks_period!=0xAAAAAAAA:
+				return False
+		print("Command Finished")
+		return True
 
 	def FlushFrameBuffer(self):
 		self.StoredAvFrames_DutyCycle = list()
+		self.StoredAvFrames_Frequency = list()
 		frame = np.transpose(np.array(np.zeros(1024)).reshape((32,32)))
-		self.TargetPlot3D.setImage(frame, autoRange=False, autoLevels=False, autoHistogramRange=False)
+		self.TargetPlot3D.setImage(frame, autoRange=True, autoLevels=True, autoHistogramRange=True)
 		self.Curve.setData(list())
 
-	def StoreAverageFrame(self):
-		self.StoredAvFrames_DutyCycle.append(sum(self.DutyCycle)/len(self.DutyCycle))
+	def EndOngoingTest(self):
+		self.FlushFrameBuffer()
+		if (self.RunningDNATest == 1):
+			self.RunningDNATest = 0
+		else:
+			self.State = "Ready"
 
+	#####################################################
+	# STORAGE ACTIONS ###################################
+	#####################################################
+	def Init_Storage(self):
+		self.now = datetime.now()
+		self.FileHandle = open('Out/'+self.State+'_'+self.now.strftime("%Y-%d-%b_%H-%M-%S")+'.csv','w') 
+		
+	def SaveLineCSV(self, File, Line):
+		np.savetxt(File, [Line], delimiter=',', fmt='%f')
+
+	def Close_Storage(self):
+		self.FileHandle.close()
+	#####################################################
+
+	######################################################
+	# PLOTTING ACTIONS ###################################
+	######################################################
 	def SetupTextBox(self, TextBox):
 		self.TextBox = TextBox
+
+	def DisplayText(self, Text):
+		self.TextBox.setText(Text)
 
 	def SetupPlots(self, PlotWindow_3D, PlotWindow_2D):
 		self.TargetPlot3D = PlotWindow_3D
@@ -200,13 +296,29 @@ class instantDNA:
 		self.TargetPlot3D.update()
 		self.Curve.setData(self.StoredAvFrames_DutyCycle)
 
-	def EndOngoingTest(self):
-		# STORE VALUES #
-		self.FlushFrameBuffer()
-		if (self.RunningDNATest == 1):
-			self.RunningDNATest = 0
-		else:
-			self.State = "Ready"
+	def PlotTempFrame(self):
+		frame = np.transpose(np.array(self.Frequency).reshape((32,32)))
+		self.TargetPlot3D.setImage(frame, autoRange=True, autoLevels=True, autoHistogramRange=True)
+		self.TargetPlot3D.update()
+		self.Curve.setData(self.StoredAvFrames_Frequency, autoRange=True, autoLevels=True)
+
+	def PlotPixel(self):
+		self.Curve.setData(self.StoredPixels_DutyCycle)
+
+	def PlotTempPixel(self):
+		self.Curve.setData(self.StoredPixels_Frequency)
+	######################################################
+
+	######################################################
+	# DRIVER METHODS #####################################
+	######################################################
+	def HelloWorld(self):
+		print("Welcome to InstantDNA!")
+
+	def CloseSPI(self):
+		self.pi.spi_close(self.spi_h)
+		self.pi.stop()
+	######################################################
 
 	####################################################
 	# DEMO METHODS #####################################
@@ -222,3 +334,4 @@ class instantDNA:
 		if len(self.StoredAvFrames_DutyCycle) > 55 and len(self.StoredAvFrames_DutyCycle) < 65:
 			spi_message = [9] + list(bytearray(struct.pack("f",1.0)))
 			(count, data) = self.pi.spi_xfer(self.spi_h, spi_message)
+	#####################################################

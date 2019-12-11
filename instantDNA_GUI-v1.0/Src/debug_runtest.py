@@ -49,7 +49,7 @@ class Ui_DebugRunTest(QtWidgets.QWidget):
 		"font: 10pt \"Arial Rounded MT Bold\";\n"
 		"border-radius: 25px;")
 
-		self.comboBox.addItems(["Obtain Samples", "Charact. Curves", "Calibrate Array", "Measure Temp", "LAMP Test", "PCR Test"])
+		self.comboBox.addItems(["Obtain Samples", "Charact. Curves", "Calibrate Array", "Temp Control", "LAMP Test", "PCR Test", "Temp Charact."])
 	
 		self.save = QtWidgets.QPushButton(self.stack)
 		self.save.setGeometry(QtCore.QRect(110, 710, 111, 45))
@@ -93,20 +93,25 @@ class Ui_DebugRunTest(QtWidgets.QWidget):
 		iDNA_driver.SetupPlots(self.graphicsView, self.graphicsView_2)
 		iDNA_driver.CalibArray()
 
-	def Test_MeasTemp(self, iDNA_driver):
-		print("Running Test: Obtain samples")
+	def Test_TempControl(self, iDNA_driver):
+		print("Running Test: Temperature Control")
 		iDNA_driver.SetupPlots(self.graphicsView, self.graphicsView_2)
-		iDNA_driver.MeasTemp()
+		iDNA_driver.TempControl()
 
 	def Test_LAMPTest(self, iDNA_driver):
 		iDNA_driver.SetupPlots(self.graphicsView, self.graphicsView_2)
-		iDNA_driver.SetLAMPTemp()
+		iDNA_driver.LAMPControl()
 		print("LAMP Test")
     
 	def Test_PCRTest(self, iDNA_driver):
 		iDNA_driver.SetupPlots(self.graphicsView, self.graphicsView_2)
 		iDNA_driver.PCRControl()
 		print("PCR Test")
+
+	def Test_TempCharact(self, iDNA_driver):
+		iDNA_driver.SetupPlots(self.graphicsView, self.graphicsView_2)
+		iDNA_driver.TempCharact()
+		print("Temperature Characterisation")
 
 	def display(self, iDNA_driver):
 		if iDNA_driver.State == "Ready":
@@ -118,11 +123,13 @@ class Ui_DebugRunTest(QtWidgets.QWidget):
 			elif self.comboText == 2:
 				self.Test_CalibArray(iDNA_driver)
 			elif self.comboText == 3:
-				self.Test_MeasTemp(iDNA_driver)
+				self.Test_TempControl(iDNA_driver)
 			elif self.comboText == 4:
 				self.Test_LAMPTest(iDNA_driver)  
 			elif self.comboText == 5:
-				self.Test_PCRTest(iDNA_driver)   
+				self.Test_PCRTest(iDNA_driver)  
+			elif self.comboText == 6:
+				self.Test_TempCharact(iDNA_driver)  
 
 	def __init__(self, Main, iDNA_driver):
 		self.stack = QtWidgets.QWidget()
