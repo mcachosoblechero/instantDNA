@@ -38,8 +38,10 @@ extern "C" {
 #define LAMP_CONTROL			0x0A
 #define PCR_CONTROL				0x0B
 #define TEMP_CONTROL 			0x0C
+#define TEMP_CHARACT			0x0D
 
-#define PIXEL_TIMEOUT		84000 // -> 1ms @ 84MHz
+#define PIXEL_TIMEOUT		10 // -> 1ms @ 84MHz
+#define PIXEL_PRESCALER 4		// -> 1 sample every 4 samples
 
 // PLATFORM DEFAULTS
 #define NUMROWS				0x20			// 32
@@ -95,14 +97,15 @@ struct PlatformParameters {
 };
 
 struct TimerChannelParam {
-
-	__IO uint32_t TicksPeriod;
-	__IO uint32_t TicksHigh;
-	__IO uint32_t NumSamples;
-	__IO float Frequency;
-	__IO float DutyCycle;
-	__IO char ValidSample;
+	__IO uint32_t TicksPeriod_Sample;
+	__IO uint32_t TicksHigh_Sample;
 	
+	__IO uint32_t Prev_TicksPeriod_Sample;
+	__IO uint32_t Prev_TicksHigh_Sample;
+
+	__IO char ActiveMeas;
+	__IO char FirstIgnored;
+	__IO char NumIter;
 };
 
 int i;
@@ -118,11 +121,8 @@ static volatile char SPIMessage_Available = 0;
 
 volatile struct PlatformParameters instantDNA;
 volatile struct TimerChannelParam TimerCh2;
-volatile int FrameBuffer[2048];
-
-/* IRQ Variables */
-
-volatile char PixTimeout = 0;
+volatile int FrameBuffer[3072];
+volatile int PixelBuffer[2];
 
 /*********************************************/
 
@@ -135,9 +135,11 @@ void ObtainAndSendFrame_Chem(volatile int*);
 void ObtainAndSendFrame_Temp(volatile int*);
 void Calib_Array_Chem_STM(volatile int*);
 void Calib_Array_Temp_STM(volatile int*);
+void Calib_Pixel_Temp_STM(volatile int*);
 void TempControl(float, volatile int*);
 void LAMPControl(float, volatile int*);
 void PCRControl(volatile int*, int);
+void TempCharact(volatile int*);
 /******* DRIVERS **************************/
 void WaitSPICommand(void);
 uint16_t voltage_to_dac(float voltage, float max, float min);
@@ -151,12 +153,14 @@ volatile int* ObtainFrame(volatile int*, volatile int*);
 volatile int* ObtainPixel(volatile int*, int, int, volatile int*);
 void SendFrame_RPi(volatile int*);
 void SendPixel_RPi(volatile int*);
+void SendFrameAndCalibration_RPi(volatile int*);
 void CalculateFrameDutyCycle(volatile int*);
 void CalculatePixelDutyCycle(volatile int*);
-int CalibrationController(float);
 void Send_EndOfAction_Frame(volatile int*);
 void Send_EndOfAction_Pixel(volatile int*);
-void Delay_1ms(void);
+void Send_EndOfAction_FrameCalib(volatile int*);
+int CalibrationController(float);
+void Delay_2ms(void);
 
 /*********************************************************************/
 
@@ -186,8 +190,16 @@ void ObtainAndSendFrame_Chem(volatile int *FrameBuf){
 void ObtainAndSendFrame_Temp(volatile int *FrameBuf){
 
 	Calib_Array_Temp_STM(FrameBuf);
-	FrameBuf = ObtainPixel(FrameBuf, TEMP_ROW, TEMP_COLUMN, instantDNA.CalibrationBuffer_Frequency);
-	SendPixel_RPi(FrameBuf);
+	FrameBuf = ObtainFrame(FrameBuf, instantDNA.CalibrationBuffer_Frequency);
+	SendFrameAndCalibration_RPi(FrameBuf);
+
+}
+
+void ObtainAndSendPixel_Temp(volatile int *PixelBuf){
+
+	Calib_Pixel_Temp_STM(PixelBuf);
+	PixelBuf = ObtainPixel(PixelBuf, TEMP_ROW, TEMP_COLUMN, instantDNA.CalibrationBuffer_Frequency);
+	SendPixel_RPi(PixelBuf);
 
 }
 
@@ -313,6 +325,44 @@ void Calib_Array_Chem_STM(volatile int *FrameBuf){
 
 void Calib_Array_Temp_STM(volatile int *FrameBuf){
 
+	int NumIter = 0;
+	int NumCalibPixels = 0;
+	int pixel;
+	
+	/************************************/
+	/* Set Freq Calib Values						*/
+	/************************************/
+	while (NumCalibPixels < NUMPIXELS && NumIter < CALIB_DC_MAXITER){
+	
+		FrameBuf = ObtainFrame(FrameBuf, instantDNA.CalibrationBuffer_Frequency);
+		CalculateFrameDutyCycle(FrameBuf);
+		NumCalibPixels = 0;
+		
+		for(pixel=0;pixel<NUMPIXELS;pixel++){
+			// IF Pixel is in range or CalibDac is out of range
+			if ((instantDNA.DutyCycleBuffer[pixel] >= (float)CALIB_FREQ_MINLRANGE && 
+					instantDNA.DutyCycleBuffer[pixel] <= (float)CALIB_FREQ_MAXLRANGE) || 
+					instantDNA.CalibrationBuffer_Frequency[pixel] <= 0 || 
+					instantDNA.CalibrationBuffer_Frequency[pixel] >= 2047){
+				NumCalibPixels++;
+			}
+			
+			// Controller
+			instantDNA.CalibrationBuffer_Frequency[pixel] += CalibrationController(instantDNA.DutyCycleBuffer[pixel]);
+			
+			// Prevent overflow
+			if (instantDNA.CalibrationBuffer_Frequency[pixel] > 2047) instantDNA.CalibrationBuffer_Frequency[pixel] = 2047;
+			else if (instantDNA.CalibrationBuffer_Frequency[pixel] < 0) instantDNA.CalibrationBuffer_Frequency[pixel] = 0;
+		}
+
+		// Calculate NumCalibPixels
+		NumIter++;	
+
+	}
+}
+
+void Calib_Pixel_Temp_STM(volatile int *FrameBuf){
+
 	char CalibDone = 0; 
 	int NumIter = 0;
 	const int TempPixel = TEMP_ROW+TEMP_COLUMN*NUMROWS;
@@ -341,25 +391,37 @@ void Calib_Array_Temp_STM(volatile int *FrameBuf){
 
 		// Calculate NumCalibPixels
 		NumIter++;	
-		//SendFrame_RPi(FrameBuf);
 	}
 }
 
-void TempControl(float Temp, volatile int* FrameBuf){
+void TempControl(float Temp, volatile int* PixBuf){
+	
+	/*static float Temp_Coil = 0.0;
+	
+	HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_12B_R, voltage_to_dac(Temp_Coil,3.3,0.0));
+	Temp_Coil += (float)0.1;
+	
+	if (Temp_Coil >= (float)3.3) Temp_Coil = 0.0;
+	Send_EndOfAction_Pixel(PixBuf);*/
+	
 	
 	int j;
 	
-	for(j = 0; j<10; j++) ObtainAndSendFrame_Temp(FrameBuf);
+	for(j = 0; j<10; j++) ObtainAndSendPixel_Temp(PixBuf);
 	instantDNA.DAC_Peltier_Voltage = (float)2.5;
 	setup_DAC(DAC_PELTIER);
-	for(j = 0; j<4000; j++) ObtainAndSendFrame_Temp(FrameBuf);
+	for(j = 0; j<40; j++) ObtainAndSendPixel_Temp(PixBuf);
 	instantDNA.DAC_Peltier_Voltage = (float)0.0;
 	setup_DAC(DAC_PELTIER);
-	Send_EndOfAction_Pixel(FrameBuf);
+	Send_EndOfAction_Pixel(PixBuf);
+	
+	
 	
 }
 
 void LAMPControl(float Temp, volatile int* FrameBuf){
+	instantDNA.DAC_Peltier_Voltage = (float)2.75;
+	setup_DAC(DAC_PELTIER);
 	Send_EndOfAction_Frame(FrameBuf);
 }
 
@@ -368,17 +430,26 @@ void PCRControl(volatile int* FrameBuf, int NumCycles){
 	/* ALOKIRA TO POPULATE */
 }
 
+
+void TempCharact(volatile int* FrameBuf){
+
+	int j;
+	for(j=0; j<50; j++) ObtainAndSendFrame_Temp(FrameBuf);
+	
+	Send_EndOfAction_FrameCalib(FrameBuf);
+	
+}
 /************************ DRIVERS **************************/
 
 
 void Start_Timers(void){
 
 	/* Start the timer */
-	if (HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_1) != HAL_OK)
+	if (HAL_TIM_IC_Start(&htim2, TIM_CHANNEL_1) != HAL_OK)
 	{
 		Error_Handler();
 	}
-	if (HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_2) != HAL_OK)
+	if (HAL_TIM_IC_Start(&htim2, TIM_CHANNEL_2) != HAL_OK)
 	{
 		Error_Handler();
 	}
@@ -393,11 +464,11 @@ void Start_Timers(void){
 void Stop_Timers(void){
 
 	/* Close the timer */
-	if (HAL_TIM_IC_Stop_IT(&htim2, TIM_CHANNEL_1) != HAL_OK)
+	if (HAL_TIM_IC_Stop(&htim2, TIM_CHANNEL_1) != HAL_OK)
 	{
 		Error_Handler();
 	}
-	if (HAL_TIM_IC_Stop_IT(&htim2, TIM_CHANNEL_2) != HAL_OK)
+	if (HAL_TIM_IC_Stop(&htim2, TIM_CHANNEL_2) != HAL_OK)
 	{
 		Error_Handler();
 	}
@@ -521,18 +592,23 @@ volatile int* ObtainFrame(volatile int* FrameBuf, volatile int* CalibrationBuffe
 			
 				// SETUP CHIP
 				setup_Chip(ISFET_ON,row, column, CalibrationBuffer[row+column*NUMROWS],DAC_INTERNAL,DAC_ACTIVE); 
-				while (PixTimeout == 0x00){} // Wait until end of pix measurement
+			
+				// Check previous state
+				TimerCh2.Prev_TicksHigh_Sample = HAL_TIM_ReadCapturedValue(&htim2, TIM_CHANNEL_1);
+				TimerCh2.Prev_TicksPeriod_Sample = HAL_TIM_ReadCapturedValue(&htim2, TIM_CHANNEL_2);
+				
+				TimerCh2.ActiveMeas = 1;
+				while (TimerCh2.ActiveMeas){} // Wait until end of pix measurement
 					
 				// Store variables
-				FrameBuf[(row+column*NUMROWS)*2] = TimerCh2.TicksHigh; 
-				FrameBuf[(row+column*NUMROWS)*2+1] = TimerCh2.TicksPeriod;
+				FrameBuf[(row+column*NUMROWS)*2] = TimerCh2.TicksHigh_Sample; 
+				FrameBuf[(row+column*NUMROWS)*2+1] = TimerCh2.TicksPeriod_Sample;
 			
 				// Restart variables
-				PixTimeout = 0;
-				TimerCh2.TicksHigh = 0;
-				TimerCh2.TicksPeriod = 0;
-				TimerCh2.NumSamples = 0;
-				TimerCh2.ValidSample = 0;
+				TimerCh2.TicksHigh_Sample = 0;
+				TimerCh2.TicksPeriod_Sample = 0;
+				TimerCh2.NumIter = 0;
+				TimerCh2.FirstIgnored = 0;
 					
 		}
 	}
@@ -545,17 +621,21 @@ volatile int* ObtainFrame(volatile int* FrameBuf, volatile int* CalibrationBuffe
 volatile int* ObtainPixel(volatile int* FrameBuf, int row, int column, volatile int* CalibrationBuffer){
 	
 	Start_Timers(); // Start Timers
+	
 	setup_Chip(ISFET_ON,row, column, CalibrationBuffer[row+column*NUMROWS],DAC_INTERNAL,DAC_ACTIVE); 
-	while (PixTimeout == 0x00){} // Wait until end of pix measurement
-	FrameBuf[0] = TimerCh2.TicksHigh; 
-	FrameBuf[1] = TimerCh2.TicksPeriod;
+	TimerCh2.ActiveMeas = 1;
+	while (TimerCh2.ActiveMeas){} // Wait until end of pix measurement
+	
+	FrameBuf[0] = TimerCh2.TicksHigh_Sample; 
+	FrameBuf[1] = TimerCh2.TicksPeriod_Sample;
 
 	// Reset Values	
-	PixTimeout = 0;
-	TimerCh2.TicksHigh = 0;
-	TimerCh2.TicksPeriod = 0;
-	TimerCh2.NumSamples = 0;
-	TimerCh2.ValidSample = 0;
+	TimerCh2.Prev_TicksHigh_Sample = TimerCh2.TicksHigh_Sample;
+	TimerCh2.Prev_TicksPeriod_Sample = TimerCh2.TicksPeriod_Sample;
+	TimerCh2.TicksHigh_Sample = 0;
+	TimerCh2.TicksPeriod_Sample = 0;
+	TimerCh2.NumIter = 0;
+	TimerCh2.FirstIgnored = 0;
 
 	Stop_Timers();
 	return FrameBuf;
@@ -573,10 +653,24 @@ void SendFrame_RPi(volatile int* FrameBuf){
 
 }
 
-void SendPixel_RPi(volatile int* FrameBuf){
+void SendPixel_RPi(volatile int* PixelBuf){
 
 	// ASSERT RPi IRQ WHEN FRAME DONE
-	HAL_SPI_TransmitReceive_IT(&hspi1, (uint8_t *)FrameBuf, (uint8_t *)FrameBuf, 8);
+	HAL_SPI_TransmitReceive_IT(&hspi1, (uint8_t *)PixelBuf, (uint8_t *)PixelBuf, 8);
+	HAL_GPIO_WritePin(IRQ_Frame_GPIO_Port, IRQ_Frame_Pin, GPIO_PIN_SET);
+	while (SPIMessage_Available == 0x00){}
+	SPIMessage_Available = 0;
+	HAL_GPIO_WritePin(IRQ_Frame_GPIO_Port, IRQ_Frame_Pin, GPIO_PIN_RESET);
+
+}
+
+void SendFrameAndCalibration_RPi(volatile int* FrameBuf){
+
+	int pixel;
+	
+	for(pixel = 0; pixel < NUMPIXELS; pixel++)  FrameBuf[pixel+2048]= instantDNA.CalibrationBuffer_Frequency[pixel];
+	
+	HAL_SPI_TransmitReceive_IT(&hspi1, (uint8_t *)FrameBuf, (uint8_t *)FrameBuf, 12288);
 	HAL_GPIO_WritePin(IRQ_Frame_GPIO_Port, IRQ_Frame_Pin, GPIO_PIN_SET);
 	while (SPIMessage_Available == 0x00){}
 	SPIMessage_Available = 0;
@@ -614,32 +708,43 @@ void Send_EndOfAction_Frame(volatile int* FrameBuf){
 
 	FrameBuf[0] = 0xAAAAAAAA;
 	FrameBuf[1] = 0xAAAAAAAA;
-	Delay_1ms();
+	Delay_2ms();
 	SendFrame_RPi(FrameBuf);
 	
 }
 
-void Send_EndOfAction_Pixel(volatile int* FrameBuf){
+void Send_EndOfAction_Pixel(volatile int* PixelBuf){
 
-	FrameBuf[0] = 0xAAAAAAAA;
-	FrameBuf[1] = 0xAAAAAAAA;
-	Delay_1ms();
-	SendPixel_RPi(FrameBuf);
+	PixelBuf[0] = 0xAAAAAAAA;
+	PixelBuf[1] = 0xAAAAAAAA;
+	Delay_2ms();
+	SendPixel_RPi(PixelBuf);
 	
 }
 
-void Delay_1ms(){
+void Send_EndOfAction_FrameCalib(volatile int* FrameBuf){
+
+	FrameBuf[0] = 0xAAAAAAAA;
+	FrameBuf[1] = 0xAAAAAAAA;
+	Delay_2ms();
+	SendFrameAndCalibration_RPi(FrameBuf);
+	
+}
+
+void Delay_2ms(){
 
 	Start_Timers(); // Start Timers
 
-	while (PixTimeout == 0x00){} // Wait until end of pix measurement - Aprox 1ms
-					
+	TimerCh2.ActiveMeas = 1;
+	while (TimerCh2.ActiveMeas){} // Wait until end of pix measurement - Aprox 1ms
+	
 	// Restart variables
-	PixTimeout = 0;
-	TimerCh2.TicksHigh = 0;
-	TimerCh2.TicksPeriod = 0;
-	TimerCh2.NumSamples = 0;
-	TimerCh2.ValidSample = 0;
+	TimerCh2.Prev_TicksHigh_Sample = TimerCh2.TicksHigh_Sample;
+	TimerCh2.Prev_TicksPeriod_Sample = TimerCh2.TicksPeriod_Sample;
+	TimerCh2.TicksHigh_Sample = 0;
+	TimerCh2.TicksPeriod_Sample = 0;
+	TimerCh2.NumIter = 0;
+	TimerCh2.FirstIgnored = 0;
 
 	Stop_Timers();
 	
