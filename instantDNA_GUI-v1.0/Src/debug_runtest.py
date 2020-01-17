@@ -49,7 +49,7 @@ class Ui_DebugRunTest(QtWidgets.QWidget):
 		"font: 10pt \"Arial Rounded MT Bold\";\n"
 		"border-radius: 25px;")
 
-		self.comboBox.addItems(["Obtain Samples", "Charact. Curves", "Calibrate Array", "Temp Control", "LAMP Test", "PCR Test", "Temp Charact."])
+		self.comboBox.addItems(["Obtain Samples", "Charact. Curves", "Calibrate Array", "Temp Control", "LAMP Test", "PCR Test", "Temp Charact.", "Temp Noise", "Obtain Ref Temp"])
 	
 		self.save = QtWidgets.QPushButton(self.stack)
 		self.save.setGeometry(QtCore.QRect(110, 710, 111, 45))
@@ -101,17 +101,27 @@ class Ui_DebugRunTest(QtWidgets.QWidget):
 	def Test_LAMPTest(self, iDNA_driver):
 		iDNA_driver.SetupPlots(self.graphicsView, self.graphicsView_2)
 		iDNA_driver.LAMPControl()
-		print("LAMP Test")
+		print("Running Test: LAMP Test")
     
 	def Test_PCRTest(self, iDNA_driver):
 		iDNA_driver.SetupPlots(self.graphicsView, self.graphicsView_2)
 		iDNA_driver.PCRControl()
-		print("PCR Test")
+		print("Running Test: PCR Test")
 
 	def Test_TempCharact(self, iDNA_driver):
 		iDNA_driver.SetupPlots(self.graphicsView, self.graphicsView_2)
 		iDNA_driver.TempCharact()
-		print("Temperature Characterisation")
+		print("Running Test: Temperature Characterisation")
+
+	def Test_TempNoise(self, iDNA_driver):
+		iDNA_driver.SetupPlots(self.graphicsView, self.graphicsView_2)
+		iDNA_driver.TempNoise()
+		print("Running Test: Temperature Noise")
+
+	def Test_ObtainRefTemp(self, iDNA_driver):
+		iDNA_driver.SetupPlots(self.graphicsView, self.graphicsView_2)
+		iDNA_driver.ObtainRefTemp()
+		print("Running Test: Obtain Reference Temperature")
 
 	def display(self, iDNA_driver):
 		if iDNA_driver.State == "Ready":
@@ -129,7 +139,11 @@ class Ui_DebugRunTest(QtWidgets.QWidget):
 			elif self.comboText == 5:
 				self.Test_PCRTest(iDNA_driver)  
 			elif self.comboText == 6:
-				self.Test_TempCharact(iDNA_driver)  
+				self.Test_TempCharact(iDNA_driver) 
+			elif self.comboText == 7:
+				self.Test_TempNoise(iDNA_driver)
+			elif self.comboText == 8:
+				self.Test_ObtainRefTemp(iDNA_driver)  
 
 	def __init__(self, Main, iDNA_driver):
 		self.stack = QtWidgets.QWidget()

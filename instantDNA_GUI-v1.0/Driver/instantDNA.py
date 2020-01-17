@@ -13,11 +13,13 @@ class instantDNA:
 		self.State = "Ready"
 		self.cb = self.pi.callback(7,pigpio.RISING_EDGE, self.isr_frame)
 		self.now = datetime.now()
+		self.Test_StartTime = datetime.now()
 
 		self.StoredAvFrames_DutyCycle = list()
 		self.StoredAvFrames_Frequency = list()
 		self.StoredPixels_DutyCycle = list()
 		self.StoredPixels_Frequency = list()
+		self.StoredRefTemp = list()
 		self.CalibValues = list()
 
 		self.RunningDNATest = 0
@@ -120,8 +122,28 @@ class instantDNA:
 			self.ReceiveFrameAndCalib()
 			if not self.CheckEndOfMessage():
 				self.ProcessFrame()
-				self.SaveLineCSV(self.FileHandle, self.DutyCycle + self.StoredAvFrames_DutyCycle[-1] + self.Frequency + self.StoredAvFrames_Frequency[-1] + self.CalibValues)
+				self.SaveLineCSV(self.FileHandle, self.DutyCycle + [self.StoredAvFrames_DutyCycle[-1]] + self.Frequency + [self.StoredAvFrames_Frequency[-1]] + self.CalibValues)
 				self.PlotTempFrame()
+			else:
+				self.Close_Storage()
+				self.State = "Ready"
+
+		elif self.State == "TempRefMeas":
+			self.ReceiveRefTemp()
+			if not self.CheckTempEndOfMessage():
+				self.ProcessRefTemp()
+				self.SaveLineCSV(self.FileHandle, self.RefTemp)
+				self.PlotTempRefFrame()
+			else:
+				self.Close_Storage()
+				self.State = "Ready"
+
+		elif self.State == "TempNoise":
+			self.ReceivePixel()
+			if not self.CheckEndOfMessage():
+				self.ProcessPixel()
+				self.SaveLineCSV(self.FileHandle, [self.ElapsedTime(self.Test_StartTime)] + [self.DutyCycle] + [self.Frequency])
+				self.PlotTempPixel()
 			else:
 				self.Close_Storage()
 				self.State = "Ready"
@@ -194,6 +216,19 @@ class instantDNA:
 		self.Init_Storage()
 		spi_message = [13] + list(bytearray(struct.pack("f",63.0)))
 		(count, data) = self.pi.spi_xfer(self.spi_h, spi_message)
+
+	def ObtainRefTemp(self):
+		self.State = "TempRefMeas"
+		self.Init_Storage()
+		spi_message = [14] + list(bytearray(struct.pack("f",63.0)))
+		(count, data) = self.pi.spi_xfer(self.spi_h, spi_message)
+
+	def TempNoise(self):
+		self.State = "TempNoise"
+		self.Init_Storage()
+		self.Test_StartTime = datetime.now()
+		spi_message = [15] + list(bytearray(struct.pack("f",63.0)))
+		(count, data) = self.pi.spi_xfer(self.spi_h, spi_message)	
 	######################################################
 
 	def ReceiveFrame(self):
@@ -219,6 +254,11 @@ class instantDNA:
 		print ("Data recieved:")
 		print (list(data))
 
+	def ReceiveRefTemp(self):
+		(count,data) = self.pi.spi_xfer(self.spi_h, [0x00, 0x00, 0x00,0x00]*1)
+		data = struct.unpack("<" + ("f"*1),data)
+		self.RefTemp = data[0];
+
 	def ProcessFrame(self):
 		self.DutyCycle = [i / j for i, j in zip(self.ticks_high, self.ticks_period)]
 		self.Frequency = [self.SamplingFreq / j for j in self.ticks_period]
@@ -228,15 +268,15 @@ class instantDNA:
 		print(self.DutyCycle[528])
 
 	def ProcessPixel(self):
-		Line = list()		
 		self.DutyCycle = (self.ticks_high / self.ticks_period)
 		self.Frequency = (self.SamplingFreq / self.ticks_period)
 		self.StoredPixels_DutyCycle.append(self.DutyCycle)	
 		self.StoredPixels_Frequency.append(self.Frequency)
-		Line.append(self.DutyCycle)
-		Line.append(self.Frequency)
-		self.SaveLineCSV(self.FileHandle, Line)
-		print("DC: " + str(self.DutyCycle) + " Freq: " + str(self.Frequency))
+		#print("DC: " + str(self.DutyCycle) + " Freq: " + str(self.Frequency))
+
+	def ProcessRefTemp(self):
+		self.StoredRefTemp.append(self.RefTemp)
+		print("Reference Temperature Received: " + str(self.RefTemp))
 
 	def CheckEndOfMessage(self):
 		if type(self.ticks_high) is tuple:
@@ -248,9 +288,19 @@ class instantDNA:
 		print("Command Finished")
 		return True
 
+	def CheckTempEndOfMessage(self):
+		if self.RefTemp != -50.0:
+			return False
+		print("Command Finished")
+		return True
+
 	def FlushFrameBuffer(self):
 		self.StoredAvFrames_DutyCycle = list()
 		self.StoredAvFrames_Frequency = list()
+		self.StoredPixels_DutyCycle = list()
+		self.StoredPixels_Frequency = list()
+		self.StoredRefTemp = list()
+		self.CalibValues = list()
 		frame = np.transpose(np.array(np.zeros(1024)).reshape((32,32)))
 		self.TargetPlot3D.setImage(frame, autoRange=True, autoLevels=True, autoHistogramRange=True)
 		self.Curve.setData(list())
@@ -271,6 +321,10 @@ class instantDNA:
 		
 	def SaveLineCSV(self, File, Line):
 		np.savetxt(File, [Line], delimiter=',', fmt='%f')
+
+	def ElapsedTime(self, InitialTime):
+		diffTime = (datetime.now() - InitialTime)
+		return diffTime.total_seconds()
 
 	def Close_Storage(self):
 		self.FileHandle.close()
@@ -301,6 +355,9 @@ class instantDNA:
 		self.TargetPlot3D.setImage(frame, autoRange=True, autoLevels=True, autoHistogramRange=True)
 		self.TargetPlot3D.update()
 		self.Curve.setData(self.StoredAvFrames_Frequency, autoRange=True, autoLevels=True)
+
+	def PlotTempRefFrame(self):
+		self.Curve.setData(self.StoredRefTemp)
 
 	def PlotPixel(self):
 		self.Curve.setData(self.StoredPixels_DutyCycle)
