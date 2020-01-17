@@ -113,6 +113,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
 	/* Initialize platform and all DAC to Default values */
 	InitPlatform();
+	InitReferenceTemp();
 	HAL_GPIO_WritePin(N5V_EN_GPIO_Port, N5V_EN_Pin, GPIO_PIN_SET);
 	setup_DAC(DAC_VREF);
 	setup_DAC(DAC_VBIAS);
@@ -212,6 +213,14 @@ int main(void)
 			
 			case TEMP_CHARACT:
 				TempCharact(FrameBuffer);
+				break;
+
+			case TEMP_REFMEAS:
+				ObtainAndSendRefTemp();
+				break;
+
+			case TEMP_NOISE:
+				TempNoise(FrameBuffer);
 				break;
 			
 			default:

@@ -6,6 +6,7 @@ extern "C" {
 #endif
 
 #include "stm32f4xx_hal.h"
+#include "tm_stm32_ds18b20.h"
 #include "main.h"
 #include <stdlib.h>
 
@@ -39,6 +40,8 @@ extern "C" {
 #define PCR_CONTROL				0x0B
 #define TEMP_CONTROL 			0x0C
 #define TEMP_CHARACT			0x0D
+#define TEMP_REFMEAS			0x0E
+#define TEMP_NOISE 				0x0F
 
 #define PIXEL_TIMEOUT		10 // -> 1ms @ 84MHz
 #define PIXEL_PRESCALER 4		// -> 1 sample every 4 samples
@@ -65,6 +68,12 @@ extern "C" {
 #define CONTROLLER_KP					175
 #define ON_LIMIT							0.85
 #define OFF_LIMIT							0.15
+
+// TEST PARAMETERS
+#
+#define SAMPLES_TNOISE					100000
+#define SAMPLES_TCHARACT				10
+#define SAMPLES_REFTEMP					100
 
 /************* PLATFORM VARIABLES ***********/
 extern DAC_HandleTypeDef hdac;
@@ -108,6 +117,15 @@ struct TimerChannelParam {
 	__IO char NumIter;
 };
 
+struct ReferenceTempParam {
+
+	TM_OneWire_t OW; 		/* Onewire structure */
+	uint8_t DS_ROM[8]; 	/* Array for DS18B20 ROM number */
+	float RefTemp; 				/* Temperature variable */
+	char ConfigReady;
+	
+};
+
 int i;
 uint8_t buf[5];
 char RPi_ActionReq;
@@ -121,6 +139,8 @@ static volatile char SPIMessage_Available = 0;
 
 volatile struct PlatformParameters instantDNA;
 volatile struct TimerChannelParam TimerCh2;
+struct ReferenceTempParam DS18B20;
+
 volatile int FrameBuffer[3072];
 volatile int PixelBuffer[2];
 
@@ -133,6 +153,7 @@ void TestOnChipDAC_Platform(void);
 void ObtainCharactCurves(volatile int*);
 void ObtainAndSendFrame_Chem(volatile int*);
 void ObtainAndSendFrame_Temp(volatile int*);
+void ObtainAndSendPixel_Temp(volatile int*);
 void Calib_Array_Chem_STM(volatile int*);
 void Calib_Array_Temp_STM(volatile int*);
 void Calib_Pixel_Temp_STM(volatile int*);
@@ -140,6 +161,8 @@ void TempControl(float, volatile int*);
 void LAMPControl(float, volatile int*);
 void PCRControl(volatile int*, int);
 void TempCharact(volatile int*);
+void ObtainAndSendRefTemp(void);
+void TempNoise(volatile int*);
 /******* DRIVERS **************************/
 void WaitSPICommand(void);
 uint16_t voltage_to_dac(float voltage, float max, float min);
@@ -159,6 +182,10 @@ void CalculatePixelDutyCycle(volatile int*);
 void Send_EndOfAction_Frame(volatile int*);
 void Send_EndOfAction_Pixel(volatile int*);
 void Send_EndOfAction_FrameCalib(volatile int*);
+void InitReferenceTemp(void);
+void ReadReferenceTemp(void);
+void SendReferenceTemp(void);
+void EndReferenceTemp(void);
 int CalibrationController(float);
 void Delay_2ms(void);
 
@@ -415,8 +442,6 @@ void TempControl(float Temp, volatile int* PixBuf){
 	setup_DAC(DAC_PELTIER);
 	Send_EndOfAction_Pixel(PixBuf);
 	
-	
-	
 }
 
 void LAMPControl(float Temp, volatile int* FrameBuf){
@@ -434,11 +459,33 @@ void PCRControl(volatile int* FrameBuf, int NumCycles){
 void TempCharact(volatile int* FrameBuf){
 
 	int j;
-	for(j=0; j<50; j++) ObtainAndSendFrame_Temp(FrameBuf);
+	for(j=0; j<SAMPLES_TCHARACT; j++) ObtainAndSendFrame_Temp(FrameBuf);
 	
 	Send_EndOfAction_FrameCalib(FrameBuf);
 	
 }
+
+void ObtainAndSendRefTemp(){
+	
+	int j;
+	
+	for(j=0; j<SAMPLES_REFTEMP; j++){
+		ReadReferenceTemp();
+		SendReferenceTemp();
+	}
+	Delay_2ms();
+	EndReferenceTemp();
+}
+
+void TempNoise(volatile int* PixelBuf){
+	
+	int j;
+	for(j=0; j<SAMPLES_TNOISE; j++) ObtainAndSendPixel_Temp(PixelBuf);
+	
+	Send_EndOfAction_Pixel(PixelBuf);
+	
+}
+
 /************************ DRIVERS **************************/
 
 
@@ -747,6 +794,56 @@ void Delay_2ms(){
 	TimerCh2.FirstIgnored = 0;
 
 	Stop_Timers();
+	
+}
+
+void InitReferenceTemp(){
+	
+	TM_OneWire_Init(&DS18B20.OW, GPIOC, GPIO_PIN_1);
+	if (TM_OneWire_First(&DS18B20.OW)) {	
+		/* Read ROM number */
+		TM_OneWire_GetFullROM(&DS18B20.OW, DS18B20.DS_ROM);
+		DS18B20.ConfigReady = 1;
+	}
+	else DS18B20.ConfigReady = 0;
+	
+}
+
+void ReadReferenceTemp(){
+
+	if (!DS18B20.ConfigReady) InitReferenceTemp();
+	if (!DS18B20.ConfigReady) return; // NOTHING TO ANSWER - DEVICE NOT THERE
+	
+	TM_DS18B20_Start(&DS18B20.OW, DS18B20.DS_ROM); 									/* START DEVICE */
+	while (!TM_DS18B20_AllDone(&DS18B20.OW)){}											/* CHECK ALL DEVICES ARE DONE */
+	TM_DS18B20_Read(&DS18B20.OW, DS18B20.DS_ROM, &DS18B20.RefTemp);	/* READ DEVICE */
+	
+	// SEND THROUGH SPI
+		
+}
+
+void SendReferenceTemp(){
+
+	uint8_t *byte = (uint8_t *)(&DS18B20.RefTemp);
+	
+	HAL_SPI_TransmitReceive_IT(&hspi1, (uint8_t *)byte, (uint8_t *)byte, 4);
+	HAL_GPIO_WritePin(IRQ_Frame_GPIO_Port, IRQ_Frame_Pin, GPIO_PIN_SET);
+	while (SPIMessage_Available == 0x00){}
+	SPIMessage_Available = 0;
+	HAL_GPIO_WritePin(IRQ_Frame_GPIO_Port, IRQ_Frame_Pin, GPIO_PIN_RESET);
+	
+}
+
+void EndReferenceTemp(){
+
+	float EndTemp = -50.0;
+	uint8_t *byte = (uint8_t *)(&EndTemp);
+	
+	HAL_SPI_TransmitReceive_IT(&hspi1, (uint8_t *)byte, (uint8_t *)byte, 4);
+	HAL_GPIO_WritePin(IRQ_Frame_GPIO_Port, IRQ_Frame_Pin, GPIO_PIN_SET);
+	while (SPIMessage_Available == 0x00){}
+	SPIMessage_Available = 0;
+	HAL_GPIO_WritePin(IRQ_Frame_GPIO_Port, IRQ_Frame_Pin, GPIO_PIN_RESET);
 	
 }
 

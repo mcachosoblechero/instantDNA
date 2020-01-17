@@ -34,4 +34,8 @@ dnapi_first\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_spi.h
 dnapi_first\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim.h
 dnapi_first\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim_ex.h
 dnapi_first\main.o: ../Src/instantDNA.h
+dnapi_first\main.o: ../Src/OneWireInterface/tm_stm32_ds18b20.h
+dnapi_first\main.o: ../Src/OneWireInterface/tm_stm32_onewire.h
+dnapi_first\main.o: ../Src/OneWireInterface/tm_stm32_delay.h
 dnapi_first\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdlib.h
+dnapi_first\main.o: ../Src/OneWireInterface/tm_stm32_gpio.h
