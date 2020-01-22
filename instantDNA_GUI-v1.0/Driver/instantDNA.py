@@ -147,6 +147,26 @@ class instantDNA:
 			else:
 				self.Close_Storage()
 				self.State = "Ready"
+
+		elif self.State == "TempCoilCharact":
+			self.ReceiveRefTemp()
+			if not self.CheckTempEndOfMessage():
+				self.ProcessRefTemp()
+				self.SaveLineCSV(self.FileHandle, [self.ElapsedTime(self.Test_StartTime)] + [self.RefTemp])
+				self.PlotTempRefFrame()
+			else:
+				self.Close_Storage()
+				self.State = "Ready"
+
+		elif self.State == "TempCoilDynamics":
+			self.ReceiveRefTemp()
+			if not self.CheckTempEndOfMessage():
+				self.ProcessRefTemp()
+				self.SaveLineCSV(self.FileHandle, [self.ElapsedTime(self.Test_StartTime)] + [self.RefTemp])
+				self.PlotTempRefFrame()
+			else:
+				self.Close_Storage()
+				self.State = "Ready"
 	######################################################	
 
 	######################################################
@@ -229,6 +249,20 @@ class instantDNA:
 		self.Test_StartTime = datetime.now()
 		spi_message = [15] + list(bytearray(struct.pack("f",63.0)))
 		(count, data) = self.pi.spi_xfer(self.spi_h, spi_message)	
+
+	def TempCoilCharact(self):
+		self.State = "TempCoilCharact"
+		self.Init_Storage()
+		self.Test_StartTime = datetime.now()
+		spi_message = [16] + list(bytearray(struct.pack("f",63.0)))
+		(count, data) = self.pi.spi_xfer(self.spi_h, spi_message)
+
+	def TempCoilDynamics(self):
+		self.State = "TempCoilDynamics"
+		self.Init_Storage()
+		self.Test_StartTime = datetime.now()
+		spi_message = [17] + list(bytearray(struct.pack("f",63.0)))
+		(count, data) = self.pi.spi_xfer(self.spi_h, spi_message)
 	######################################################
 
 	def ReceiveFrame(self):

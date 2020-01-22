@@ -49,7 +49,7 @@ class Ui_DebugRunTest(QtWidgets.QWidget):
 		"font: 10pt \"Arial Rounded MT Bold\";\n"
 		"border-radius: 25px;")
 
-		self.comboBox.addItems(["Obtain Samples", "Charact. Curves", "Calibrate Array", "Temp Control", "LAMP Test", "PCR Test", "Temp Charact.", "Temp Noise", "Obtain Ref Temp"])
+		self.comboBox.addItems(["Obtain Samples", "Charact. Curves", "Calibrate Array", "Temp Control", "LAMP", "PCR", "Chip Temp Charact.", "Temp Noise", "Obtain Ref Temp", "Charact. Coil Ref Temp", "Charact. Coil Dynamics"])
 	
 		self.save = QtWidgets.QPushButton(self.stack)
 		self.save.setGeometry(QtCore.QRect(110, 710, 111, 45))
@@ -123,6 +123,16 @@ class Ui_DebugRunTest(QtWidgets.QWidget):
 		iDNA_driver.ObtainRefTemp()
 		print("Running Test: Obtain Reference Temperature")
 
+	def Test_TempCoilCharact(self, iDNA_driver):
+		iDNA_driver.SetupPlots(self.graphicsView, self.graphicsView_2)
+		iDNA_driver.TempCoilCharact()
+		print("Running Test: Characterise Coil At Different Temperatures")
+
+	def Test_TempCoilDynamic(self, iDNA_driver):
+		iDNA_driver.SetupPlots(self.graphicsView, self.graphicsView_2)
+		iDNA_driver.TempCoilDynamics()
+		print("Running Test: Characterise Coil Dynamics")
+
 	def display(self, iDNA_driver):
 		if iDNA_driver.State == "Ready":
 			self.comboText = int(self.comboBox.currentIndex())
@@ -143,7 +153,11 @@ class Ui_DebugRunTest(QtWidgets.QWidget):
 			elif self.comboText == 7:
 				self.Test_TempNoise(iDNA_driver)
 			elif self.comboText == 8:
-				self.Test_ObtainRefTemp(iDNA_driver)  
+				self.Test_ObtainRefTemp(iDNA_driver) 
+			elif self.comboText == 9:
+				self.Test_TempCoilCharact(iDNA_driver) 
+			elif self.comboText == 10:
+				self.Test_TempCoilDynamic(iDNA_driver) 
 
 	def __init__(self, Main, iDNA_driver):
 		self.stack = QtWidgets.QWidget()
