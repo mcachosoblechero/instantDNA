@@ -80,7 +80,7 @@ static void MX_TIM3_Init(void);
   * @retval int
   */
 int main(void)
-{
+ {
   /* USER CODE BEGIN 1 */
 
   /* USER CODE END 1 */
@@ -216,11 +216,19 @@ int main(void)
 				break;
 
 			case TEMP_REFMEAS:
-				ObtainAndSendRefTemp();
+				TempRefSensorCharact();
 				break;
 
 			case TEMP_NOISE:
 				TempNoise(FrameBuffer);
+				break;
+			
+			case TEMP_COILCHARACT:
+				TempCoilCharact();
+				break;
+			
+			case TEMP_COILDYNAMIC:
+				TempCoilDynamics();
 				break;
 			
 			default:

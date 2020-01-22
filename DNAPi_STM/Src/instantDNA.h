@@ -16,6 +16,7 @@ extern "C" {
 #define DAC_IOTA 			0x02
 #define DAC_REFELEC		0x03
 #define DAC_PELTIER		0x04
+#define DAC_COIL			0x05
 
 // CHIP INTERFACE
 #define ISFET_OFF			0x00
@@ -26,22 +27,24 @@ extern "C" {
 #define DAC_DEBUGMODE 0x01
 
 // RPI ACTIONS
-#define HELLOWORLD				0x00
-#define SET_DAC_VREF			0x01
-#define SET_DAC_VBIAS			0x02
-#define SET_DAC_IOTA			0x03
-#define SET_DAC_REFE			0x04
-#define TEST_ONCHIPDAC  	0x05
-#define OBTAIN_FRAME  		0x06
-#define CHARACTCURVES			0x07
-#define CALIB_ARRAY				0x08
-#define INCREASE_PH				0x09
-#define LAMP_CONTROL			0x0A
-#define PCR_CONTROL				0x0B
-#define TEMP_CONTROL 			0x0C
-#define TEMP_CHARACT			0x0D
-#define TEMP_REFMEAS			0x0E
-#define TEMP_NOISE 				0x0F
+#define HELLOWORLD						0x00
+#define SET_DAC_VREF					0x01
+#define SET_DAC_VBIAS					0x02
+#define SET_DAC_IOTA					0x03
+#define SET_DAC_REFE					0x04
+#define TEST_ONCHIPDAC  			0x05
+#define OBTAIN_FRAME  				0x06
+#define CHARACTCURVES					0x07
+#define CALIB_ARRAY						0x08
+#define INCREASE_PH						0x09
+#define LAMP_CONTROL					0x0A
+#define PCR_CONTROL						0x0B
+#define TEMP_CONTROL 					0x0C
+#define TEMP_CHARACT					0x0D
+#define TEMP_REFMEAS					0x0E
+#define TEMP_NOISE 						0x0F
+#define TEMP_COILCHARACT			0x10
+#define TEMP_COILDYNAMIC			0x11
 
 #define PIXEL_TIMEOUT		10 // -> 1ms @ 84MHz
 #define PIXEL_PRESCALER 4		// -> 1 sample every 4 samples
@@ -50,11 +53,13 @@ extern "C" {
 #define NUMROWS				0x20			// 32
 #define NUMCOLS				0x20			// 32
 #define NUMPIXELS			1024
-#define DAC_VREF_DEFAULT			0.0
+#define DAC_VREF_DEFAULT			0.2
 #define DAC_VBIAS_DEFAULT			0.272
 #define DAC_IOTA_DEFAULT			0.3
 #define DAC_REFELECT_DEFAULT	0.0
 #define DAC_PELTIER_DEFAULT 	0.0
+#define DAC_COIL_DEFAULT			0.0
+#define DAC_COIL_MAX					2.5
 
 // CALIBRATION PARAMETERS
 #define CALIB_DC_MAXITER			25
@@ -97,6 +102,7 @@ struct PlatformParameters {
 	float DAC_IOTA_Voltage;
 	float DAC_RefElect_Voltage;
 	float DAC_Peltier_Voltage;
+	float DAC_Coil_Voltage;
 	float Platform_Temp;
 	
 	int CalibrationBuffer_DutyCycle[1024];
@@ -161,8 +167,10 @@ void TempControl(float, volatile int*);
 void LAMPControl(float, volatile int*);
 void PCRControl(volatile int*, int);
 void TempCharact(volatile int*);
-void ObtainAndSendRefTemp(void);
 void TempNoise(volatile int*);
+void TempRefSensorCharact(void);
+void TempCoilCharact(void);
+void TempCoilDynamics(void);
 /******* DRIVERS **************************/
 void WaitSPICommand(void);
 uint16_t voltage_to_dac(float voltage, float max, float min);
@@ -188,7 +196,6 @@ void SendReferenceTemp(void);
 void EndReferenceTemp(void);
 int CalibrationController(float);
 void Delay_2ms(void);
-
 /*********************************************************************/
 
 // FUNCTIONS DEFINITION
@@ -202,6 +209,7 @@ void InitPlatform(void){
 	instantDNA.DAC_IOTA_Voltage = DAC_IOTA_DEFAULT;
 	instantDNA.DAC_RefElect_Voltage = DAC_REFELECT_DEFAULT;
 	instantDNA.DAC_Peltier_Voltage = DAC_PELTIER_DEFAULT;
+	instantDNA.DAC_Coil_Voltage = DAC_COIL_DEFAULT;
 	for (i = 0; i < 1024; i++) instantDNA.CalibrationBuffer_DutyCycle[i] = 1024;
 	for (i = 0; i < 1024; i++) instantDNA.CalibrationBuffer_Frequency[i] = 1024;
 	
@@ -465,7 +473,17 @@ void TempCharact(volatile int* FrameBuf){
 	
 }
 
-void ObtainAndSendRefTemp(){
+void TempNoise(volatile int* PixelBuf){
+	
+	int j;
+	for(j=0; j<SAMPLES_TNOISE; j++) ObtainAndSendPixel_Temp(PixelBuf);
+	
+	Send_EndOfAction_Pixel(PixelBuf);
+	
+}
+
+
+void TempRefSensorCharact(void){
 	
 	int j;
 	
@@ -475,15 +493,64 @@ void ObtainAndSendRefTemp(){
 	}
 	Delay_2ms();
 	EndReferenceTemp();
+	
 }
 
-void TempNoise(volatile int* PixelBuf){
+void TempCoilCharact(void){
 	
+	/********************************************/
+	/* CHARACTERISATION - CHIP TO CHIP MISMATCH */
+	/********************************************/
 	int j;
-	for(j=0; j<SAMPLES_TNOISE; j++) ObtainAndSendPixel_Temp(PixelBuf);
+	int iter;
 	
-	Send_EndOfAction_Pixel(PixelBuf);
+	for (iter = 0; iter < 6; iter++){
+		instantDNA.DAC_Coil_Voltage = iter * 0.25;
+		setup_DAC(DAC_COIL);
+		
+		for(j=0; j<SAMPLES_REFTEMP; j++){
+			ReadReferenceTemp();
+			SendReferenceTemp();
+		}
+	}
 	
+	instantDNA.DAC_Coil_Voltage = 0.0;
+	setup_DAC(DAC_COIL);
+	/********************************************/
+	
+}
+
+
+void TempCoilDynamics(void){
+
+	int j;
+	
+	/*******************************************/
+	/* CHARACTERISATION - TEMPERATURE DYNAMICS */
+	/*******************************************/
+	instantDNA.DAC_Coil_Voltage = 0.0;
+	setup_DAC(DAC_COIL);
+	
+	for (j=0; j<100; j++){
+			ReadReferenceTemp();
+			SendReferenceTemp();
+	}
+	
+	instantDNA.DAC_Coil_Voltage = 1.5;
+	setup_DAC(DAC_COIL);
+	
+	for (j=0; j<1000; j++){
+			ReadReferenceTemp();
+			SendReferenceTemp();
+	}
+	
+	instantDNA.DAC_Coil_Voltage = 0.0;
+	setup_DAC(DAC_COIL);
+	/*******************************************/
+	
+	Delay_2ms();
+	EndReferenceTemp();
+
 }
 
 /************************ DRIVERS **************************/
@@ -599,6 +666,11 @@ void setup_DAC(char DAC_Select)
 			HAL_GPIO_WritePin(GPIOA, PELTIER_CS_Pin, GPIO_PIN_RESET);
 			HAL_SPI_Transmit(&hspi2, (uint8_t*)&data_to_send, 2, 256);
 			HAL_GPIO_WritePin(GPIOA, PELTIER_CS_Pin, GPIO_PIN_SET);
+		
+		case DAC_COIL:
+			if (instantDNA.DAC_Coil_Voltage > (float)DAC_COIL_MAX) instantDNA.DAC_Coil_Voltage = (float)DAC_COIL_MAX;
+			HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_12B_R, voltage_to_dac(instantDNA.DAC_Coil_Voltage,3.3,0.0));
+			break;
 	}
 }
 
@@ -799,7 +871,7 @@ void Delay_2ms(){
 
 void InitReferenceTemp(){
 	
-	TM_OneWire_Init(&DS18B20.OW, GPIOC, GPIO_PIN_1);
+	TM_OneWire_Init(&DS18B20.OW, GPIOC, GPIO_PIN_0);
 	if (TM_OneWire_First(&DS18B20.OW)) {	
 		/* Read ROM number */
 		TM_OneWire_GetFullROM(&DS18B20.OW, DS18B20.DS_ROM);
