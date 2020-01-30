@@ -20,6 +20,7 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include <math.h>
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -49,6 +50,7 @@ SPI_HandleTypeDef hspi2;
 
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
+TIM_HandleTypeDef htim4;
 TIM_HandleTypeDef htim5;
 
 /* USER CODE BEGIN PV */
@@ -65,6 +67,7 @@ static void MX_TIM2_Init(void);
 static void MX_TIM5_Init(void);
 static void MX_DAC_Init(void);
 static void MX_TIM3_Init(void);
+static void MX_TIM4_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -80,7 +83,7 @@ static void MX_TIM3_Init(void);
   * @retval int
   */
 int main(void)
- {
+{
   /* USER CODE BEGIN 1 */
 
   /* USER CODE END 1 */
@@ -110,6 +113,7 @@ int main(void)
   MX_TIM5_Init();
   MX_DAC_Init();
   MX_TIM3_Init();
+  MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
 	/* Initialize platform and all DAC to Default values */
 	InitPlatform();
@@ -229,6 +233,10 @@ int main(void)
 			
 			case TEMP_COILDYNAMIC:
 				TempCoilDynamics();
+				break;
+			
+			case WAVEFORM_GEN:
+				WaveGen(FrameBuffer);
 				break;
 			
 			default:
@@ -525,6 +533,51 @@ static void MX_TIM3_Init(void)
 }
 
 /**
+  * @brief TIM4 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM4_Init(void)
+{
+
+  /* USER CODE BEGIN TIM4_Init 0 */
+
+  /* USER CODE END TIM4_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM4_Init 1 */
+
+  /* USER CODE END TIM4_Init 1 */
+  htim4.Instance = TIM4;
+  htim4.Init.Prescaler = 1;
+  htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim4.Init.Period = 4200;
+  htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim4) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim4, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim4, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM4_Init 2 */
+
+  /* USER CODE END TIM4_Init 2 */
+
+}
+
+/**
   * @brief TIM5 Initialization Function
   * @param None
   * @retval None
@@ -670,33 +723,42 @@ void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi)
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 
-	if (!TimerCh2.ActiveMeas) return;
+	if (htim == &htim3){
+		if (!TimerCh2.ActiveMeas) return;
 
-	// Read Registers from all timers	
-	TimerCh2.TicksHigh_Sample = HAL_TIM_ReadCapturedValue(&htim2, TIM_CHANNEL_1);
-	TimerCh2.TicksPeriod_Sample = HAL_TIM_ReadCapturedValue(&htim2, TIM_CHANNEL_2);
-	
-	// Compare registers with previous results
-	// If Different -> Sample
-	if ((TimerCh2.TicksHigh_Sample != TimerCh2.Prev_TicksHigh_Sample) && (TimerCh2.TicksPeriod_Sample != TimerCh2.Prev_TicksPeriod_Sample)) {
+		// Read Registers from all timers	
+		TimerCh2.TicksHigh_Sample = HAL_TIM_ReadCapturedValue(&htim2, TIM_CHANNEL_1);
+		TimerCh2.TicksPeriod_Sample = HAL_TIM_ReadCapturedValue(&htim2, TIM_CHANNEL_2);
 		
-		// If sample is first = ignore - potentially corrupted
-		if (!TimerCh2.FirstIgnored) {TimerCh2.FirstIgnored = 1; return;}
-		
-		// If sample is faulty - discard
-		if (TimerCh2.TicksHigh_Sample > TimerCh2.TicksPeriod_Sample) return;
-		else TimerCh2.ActiveMeas = 0;
-	}
-	
-	// If Equal -> Note and wait one more
-	else {
-		TimerCh2.NumIter++;
-		if (TimerCh2.NumIter > 20) {
-			TimerCh2.TicksPeriod_Sample = 84000;
-			if(HAL_GPIO_ReadPin(PWM_GPIO_Port, PWM_Pin) == 0x01) TimerCh2.TicksHigh_Sample = TimerCh2.TicksPeriod_Sample;
-			else TimerCh2.TicksHigh_Sample = 0;
-			TimerCh2.ActiveMeas = 0;
+		// Compare registers with previous results
+		// If Different -> Sample
+		if ((TimerCh2.TicksHigh_Sample != TimerCh2.Prev_TicksHigh_Sample) && (TimerCh2.TicksPeriod_Sample != TimerCh2.Prev_TicksPeriod_Sample)) {
+			
+			// If sample is first = ignore - potentially corrupted
+			if (!TimerCh2.FirstIgnored) {TimerCh2.FirstIgnored = 1; return;}
+			
+			// If sample is faulty - discard
+			if (TimerCh2.TicksHigh_Sample > TimerCh2.TicksPeriod_Sample) return;
+			else TimerCh2.ActiveMeas = 0;
 		}
+		
+		// If Equal -> Note and wait one more
+		else {
+			TimerCh2.NumIter++;
+			if (TimerCh2.NumIter > 20) {
+				TimerCh2.TicksPeriod_Sample = 84000;
+				if(HAL_GPIO_ReadPin(PWM_GPIO_Port, PWM_Pin) == 0x01) TimerCh2.TicksHigh_Sample = TimerCh2.TicksPeriod_Sample;
+				else TimerCh2.TicksHigh_Sample = 0;
+				TimerCh2.ActiveMeas = 0;
+			}
+		}
+	}
+	else if (htim == &htim4){
+		instantDNA.DAC_RefElect_SineWave_Time++;
+		instantDNA.DAC_RefElect_SineWave_Radians = (float)instantDNA.DAC_RefElect_SineWave_Time * (2 * 3.1416) / 360.0;
+		instantDNA.DAC_RefElect_SineWave = 0.1 * sin(instantDNA.DAC_RefElect_SineWave_Radians);
+		instantDNA.DAC_RefElect_Voltage = instantDNA.DAC_RefElect_DC + instantDNA.DAC_RefElect_SineWave;
+		setup_DAC(DAC_REFELEC);
 	}
 	
 }

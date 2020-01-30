@@ -45,6 +45,7 @@ extern "C" {
 #define TEMP_NOISE 						0x0F
 #define TEMP_COILCHARACT			0x10
 #define TEMP_COILDYNAMIC			0x11
+#define WAVEFORM_GEN					0x12
 
 #define PIXEL_TIMEOUT		10 // -> 1ms @ 84MHz
 #define PIXEL_PRESCALER 4		// -> 1 sample every 4 samples
@@ -75,7 +76,6 @@ extern "C" {
 #define OFF_LIMIT							0.15
 
 // TEST PARAMETERS
-#
 #define SAMPLES_TNOISE					100000
 #define SAMPLES_TCHARACT				10
 #define SAMPLES_REFTEMP					100
@@ -88,6 +88,7 @@ extern SPI_HandleTypeDef hspi2;
 
 extern TIM_HandleTypeDef htim2;
 extern TIM_HandleTypeDef htim3;
+extern TIM_HandleTypeDef htim4;
 extern TIM_HandleTypeDef htim5;
 /********************************************/
 
@@ -108,6 +109,11 @@ struct PlatformParameters {
 	int CalibrationBuffer_DutyCycle[1024];
 	int CalibrationBuffer_Frequency[1024];
 	float DutyCycleBuffer[1024];
+	
+	float DAC_RefElect_DC;
+	float DAC_RefElect_SineWave;
+	int DAC_RefElect_SineWave_Time;
+	float DAC_RefElect_SineWave_Radians;
 	
 };
 
@@ -171,6 +177,7 @@ void TempNoise(volatile int*);
 void TempRefSensorCharact(void);
 void TempCoilCharact(void);
 void TempCoilDynamics(void);
+void WaveGen(volatile int*);
 /******* DRIVERS **************************/
 void WaitSPICommand(void);
 uint16_t voltage_to_dac(float voltage, float max, float min);
@@ -196,6 +203,8 @@ void SendReferenceTemp(void);
 void EndReferenceTemp(void);
 int CalibrationController(float);
 void Delay_2ms(void);
+void StartWaveformGeneration(void);
+void EndWaveformGeneration(void);
 /*********************************************************************/
 
 // FUNCTIONS DEFINITION
@@ -212,6 +221,8 @@ void InitPlatform(void){
 	instantDNA.DAC_Coil_Voltage = DAC_COIL_DEFAULT;
 	for (i = 0; i < 1024; i++) instantDNA.CalibrationBuffer_DutyCycle[i] = 1024;
 	for (i = 0; i < 1024; i++) instantDNA.CalibrationBuffer_Frequency[i] = 1024;
+	instantDNA.DAC_RefElect_SineWave = 0;
+	instantDNA.DAC_RefElect_SineWave_Time = 0;
 	
 }
 
@@ -518,6 +529,9 @@ void TempCoilCharact(void){
 	setup_DAC(DAC_COIL);
 	/********************************************/
 	
+	Delay_2ms();
+	EndReferenceTemp();
+	
 }
 
 
@@ -536,7 +550,7 @@ void TempCoilDynamics(void){
 			SendReferenceTemp();
 	}
 	
-	instantDNA.DAC_Coil_Voltage = 1.5;
+	instantDNA.DAC_Coil_Voltage = 1.25;
 	setup_DAC(DAC_COIL);
 	
 	for (j=0; j<1000; j++){
@@ -552,6 +566,24 @@ void TempCoilDynamics(void){
 	EndReferenceTemp();
 
 }
+
+void WaveGen(volatile int* FrameBuf){
+
+	int j;
+	
+	instantDNA.DAC_RefElect_DC = instantDNA.DAC_RefElect_Voltage;
+	
+	StartWaveformGeneration();
+	for(j = 0; j<500; j++) Delay_2ms();
+	EndWaveformGeneration();
+	
+	instantDNA.DAC_RefElect_Voltage = instantDNA.DAC_RefElect_DC;
+	
+	Delay_2ms();
+	Send_EndOfAction_Frame(FrameBuf);
+	
+}
+
 
 /************************ DRIVERS **************************/
 
@@ -917,6 +949,20 @@ void EndReferenceTemp(){
 	SPIMessage_Available = 0;
 	HAL_GPIO_WritePin(IRQ_Frame_GPIO_Port, IRQ_Frame_Pin, GPIO_PIN_RESET);
 	
+}
+
+void StartWaveformGeneration(void){
+	if (HAL_TIM_Base_Start_IT(&htim4) != HAL_OK)
+	{
+		Error_Handler();
+	}
+}
+
+void EndWaveformGeneration(void){
+	if (HAL_TIM_Base_Stop_IT(&htim4) != HAL_OK)
+	{
+		Error_Handler();
+	}
 }
 
 #endif /* __INSTANTDNA_H */
