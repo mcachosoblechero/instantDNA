@@ -14,7 +14,9 @@ class instantDNA:
 		self.cb = self.pi.callback(7,pigpio.RISING_EDGE, self.isr_frame)
 		self.now = datetime.now()
 		self.Test_StartTime = datetime.now()
-
+		self.NumSample = 0
+		self.RefElectVoltage = -2.0;
+		self.DeltaRefElect = 0.025; 
 		self.StoredAvFrames_DutyCycle = list()
 		self.StoredAvFrames_Frequency = list()
 		self.StoredPixels_DutyCycle = list()
@@ -73,9 +75,13 @@ class instantDNA:
 			self.ReceiveFrame()
 			if not self.CheckEndOfMessage():
 				self.ProcessFrame()
+				self.SaveLineCSV(self.FileHandle, [self.ElapsedTime(self.Test_StartTime)] + [self.RefElectVoltage] + self.DutyCycle + self.Frequency)
+				self.RefElectVoltage = self.RefElectVoltage + self.DeltaRefElect
+				print("Ref. Elect. Voltage = " + str(self.RefElectVoltage))
 				self.PlotFrame()
 			else:
 				self.Close_Storage()
+				self.RefElectVoltage = -2.0;
 				self.State = "Ready"
 
 		elif self.State == "CalibArray":
@@ -110,12 +116,14 @@ class instantDNA:
 				self.State = "Ready"
 
 		elif self.State == "PCR":
-			self.ReceiveFrame()
-			if not self.CheckEndOfMessage():
-				self.ProcessFrame()
-				self.PlotTempFrame()
+			self.ReceiveRefTemp()
+			if not self.CheckTempEndOfMessage():
+				self.ProcessRefTemp()
+				self.SaveLineCSV(self.FileHandle, [self.ElapsedTime(self.Test_StartTime)] + [self.RefTemp])
+				self.PlotTempRefFrame()
 			else:
 				self.Close_Storage()
+				self.NumSample = 0
 				self.State = "Ready"
 
 		elif self.State == "TempCharact":
@@ -136,6 +144,7 @@ class instantDNA:
 				self.PlotTempRefFrame()
 			else:
 				self.Close_Storage()
+				self.NumSample = 0
 				self.State = "Ready"
 
 		elif self.State == "TempNoise":
@@ -156,6 +165,7 @@ class instantDNA:
 				self.PlotTempRefFrame()
 			else:
 				self.Close_Storage()
+				self.NumSample = 0
 				self.State = "Ready"
 
 		elif self.State == "TempCoilDynamics":
@@ -164,6 +174,27 @@ class instantDNA:
 				self.ProcessRefTemp()
 				self.SaveLineCSV(self.FileHandle, [self.ElapsedTime(self.Test_StartTime)] + [self.RefTemp])
 				self.PlotTempRefFrame()
+			else:
+				self.Close_Storage()
+				self.NumSample = 0
+				self.State = "Ready"
+
+		elif self.State == "WaveGen":
+			self.ReceiveFrame()
+			if not self.CheckEndOfMessage():
+				self.ProcessFrame()
+				self.SaveLineCSV(self.FileHandle, [self.ElapsedTime(self.Test_StartTime)] + self.DutyCycle + [self.StoredAvFrames_DutyCycle[-1]] + self.Frequency + [self.StoredAvFrames_Frequency[-1]] + self.CalibValues)
+				self.PlotFrame()
+			else:
+				self.Close_Storage()
+				self.State = "Ready"
+
+		elif self.State == "ChemNoise":
+			self.ReceivePixel()
+			if not self.CheckEndOfMessage():
+				self.ProcessPixel()
+				self.SaveLineCSV(self.FileHandle, [self.ElapsedTime(self.Test_StartTime)] + [self.DutyCycle] + [self.Frequency])
+				self.PlotPixel()
 			else:
 				self.Close_Storage()
 				self.State = "Ready"
@@ -263,6 +294,20 @@ class instantDNA:
 		self.Test_StartTime = datetime.now()
 		spi_message = [17] + list(bytearray(struct.pack("f",63.0)))
 		(count, data) = self.pi.spi_xfer(self.spi_h, spi_message)
+
+	def WaveGen(self):
+		self.State = "WaveGen"
+		self.Init_Storage()
+		self.Test_StartTime = datetime.now()
+		spi_message = [18] + list(bytearray(struct.pack("f",63.0)))
+		(count, data) = self.pi.spi_xfer(self.spi_h, spi_message)
+
+	def ChemNoise(self):
+		self.State = "ChemNoise"
+		self.Init_Storage()
+		self.Test_StartTime = datetime.now()
+		spi_message = [19] + list(bytearray(struct.pack("f",63.0)))
+		(count, data) = self.pi.spi_xfer(self.spi_h, spi_message)
 	######################################################
 
 	def ReceiveFrame(self):
@@ -277,6 +322,9 @@ class instantDNA:
 		data = struct.unpack("<" + ("L"*2),data)
 		self.ticks_high = data[0]
 		self.ticks_period = data[1]
+		#print ("Bytes transferred: " + str(count))
+		#print ("Data recieved:")
+		#print (list(data))
 
 	def ReceiveFrameAndCalib(self):
 		(count,data) = self.pi.spi_xfer(self.spi_h, [0x00, 0x00, 0x00,0x00]*3072)
@@ -306,11 +354,12 @@ class instantDNA:
 		self.Frequency = (self.SamplingFreq / self.ticks_period)
 		self.StoredPixels_DutyCycle.append(self.DutyCycle)	
 		self.StoredPixels_Frequency.append(self.Frequency)
-		#print("DC: " + str(self.DutyCycle) + " Freq: " + str(self.Frequency))
+		print("DC: " + str(self.DutyCycle) + " Freq: " + str(self.Frequency))
 
 	def ProcessRefTemp(self):
 		self.StoredRefTemp.append(self.RefTemp)
-		print("Reference Temperature Received: " + str(self.RefTemp))
+		print("Sample: " + str(self.NumSample) + " Temp: " + str(self.RefTemp))
+		self.NumSample = self.NumSample + 1
 
 	def CheckEndOfMessage(self):
 		if type(self.ticks_high) is tuple:
