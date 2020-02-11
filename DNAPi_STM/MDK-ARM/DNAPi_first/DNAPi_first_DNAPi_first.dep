@@ -1,7 +1,7 @@
 Dependencies for Project 'DNAPi_first', Target 'DNAPi_first': (DO NOT MODIFY !)
 F (startup_stm32f405xx.s)(0x5E2B30ED)(--cpu Cortex-M4.fp --pd "__EVAL SETA 1" -g --apcs=interwork --pd "__MICROLIB SETA 1"-I.\RTE\_DNAPi_first-IC:\Users\mc1713\AppData\Local\Arm\Packs\ARM\CMSIS\5.5.1\CMSIS\Core\Include-IC:\Users\mc1713\AppData\Local\Arm\Packs\Keil\STM32F4xx_DFP\2.13.0\Drivers\CMSIS\Device\ST\STM32F4xx\Include--pd "__UVISION_VERSION SETA 528" --pd "_RTE_ SETA 1" --pd "STM32F405xx SETA 1"--list startup_stm32f405xx.lst --xref -o dnapi_first\startup_stm32f405xx.o --depend dnapi_first\startup_stm32f405xx.d)
-F (../src/instantDNA.h)(0x5E2ED461)()
-F (../Src/main.c)(0x5E2ED429)(--c99 -c --cpu Cortex-M4.fp -D__EVAL -D__MICROLIB -g -O3 --apcs=interwork --split_sections -I ../Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I ../Drivers/CMSIS/Include -I ../Src/OneWireInterface-I.\RTE\_DNAPi_first-IC:\Users\mc1713\AppData\Local\Arm\Packs\ARM\CMSIS\5.5.1\CMSIS\Core\Include-IC:\Users\mc1713\AppData\Local\Arm\Packs\Keil\STM32F4xx_DFP\2.13.0\Drivers\CMSIS\Device\ST\STM32F4xx\Include-D__UVISION_VERSION="528" -D_RTE_ -DSTM32F405xx -DUSE_HAL_DRIVER -DSTM32F405xx-o dnapi_first\main.o --omf_browse dnapi_first\main.crf --depend dnapi_first\main.d)
+F (../src/instantDNA.h)(0x5E429F3D)()
+F (../Src/main.c)(0x5E347CC2)(--c99 -c --cpu Cortex-M4.fp -D__EVAL -D__MICROLIB -g -O3 --apcs=interwork --split_sections -I ../Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I ../Drivers/CMSIS/Include -I ../Src/OneWireInterface-I.\RTE\_DNAPi_first-IC:\Users\mc1713\AppData\Local\Arm\Packs\ARM\CMSIS\5.5.1\CMSIS\Core\Include-IC:\Users\mc1713\AppData\Local\Arm\Packs\Keil\STM32F4xx_DFP\2.13.0\Drivers\CMSIS\Device\ST\STM32F4xx\Include-D__UVISION_VERSION="528" -D_RTE_ -DSTM32F405xx -DUSE_HAL_DRIVER -DSTM32F405xx-o dnapi_first\main.o --omf_browse dnapi_first\main.crf --depend dnapi_first\main.d)
 I (../Inc/main.h)(0x5E2B30EA)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h)(0x5D762DC8)
 I (../Inc/stm32f4xx_hal_conf.h)(0x5E2B30EA)
@@ -36,7 +36,7 @@ I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_spi.h)(0x5D762DC8)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim.h)(0x5D762DC8)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim_ex.h)(0x5D762DC8)
 I (C:\Keil_v5\ARM\ARMCC\include\math.h)(0x5CEBDC46)
-I (../Src/instantDNA.h)(0x5E2ED461)
+I (../Src/instantDNA.h)(0x5E429F3D)
 I (../Src/OneWireInterface/tm_stm32_ds18b20.h)(0x5E14A175)
 I (../Src/OneWireInterface/tm_stm32_onewire.h)(0x5E14A08E)
 I (../Src/OneWireInterface/tm_stm32_delay.h)(0x5E14A0C5)

@@ -55,7 +55,7 @@ extern "C" {
 #define NUMCOLS				0x20			// 32
 #define NUMPIXELS			1024
 #define DAC_VREF_DEFAULT			0.2
-#define DAC_VBIAS_DEFAULT			0.272
+#define DAC_VBIAS_DEFAULT			0.18
 #define DAC_IOTA_DEFAULT			0.3
 #define DAC_REFELECT_DEFAULT	0.0
 #define DAC_PELTIER_DEFAULT 	0.0
@@ -201,6 +201,7 @@ void InitReferenceTemp(void);
 void ReadReferenceTemp(void);
 void SendReferenceTemp(void);
 void EndReferenceTemp(void);
+void SetReferenceTemp(float);
 int CalibrationController(float);
 void Delay_2ms(void);
 void StartWaveformGeneration(void);
@@ -272,6 +273,9 @@ void ObtainCharactCurves(volatile int *FrameBuf){
 		SendFrame_RPi(FrameBuf);
 		instantDNA.DAC_RefElect_Voltage += (float)0.025;
 	}
+	
+	Delay_2ms();
+	Send_EndOfAction_Frame(FrameBuf);
 	
 }
 
@@ -470,8 +474,22 @@ void LAMPControl(float Temp, volatile int* FrameBuf){
 }
 
 void PCRControl(volatile int* FrameBuf, int NumCycles){
-	Send_EndOfAction_Frame(FrameBuf);
+	
+	/* Set initial temperature for testing cooling */
+	SetReferenceTemp(65.0);
+	
+	instantDNA.DAC_Peltier_Voltage = (float)2.5; // <- This is mid-range, you can try increasing this until 5V. If so, keep an eye on the rest of the components
+	setup_DAC(DAC_PELTIER);
+
+	/* Read Reference Temp for study the cooling */
 	/* ALOKIRA TO POPULATE */
+	
+	instantDNA.DAC_Peltier_Voltage = (float)0.0;
+	setup_DAC(DAC_PELTIER);
+	
+	Delay_2ms();
+	EndReferenceTemp();
+
 }
 
 
@@ -515,7 +533,7 @@ void TempCoilCharact(void){
 	int j;
 	int iter;
 	
-	for (iter = 0; iter < 6; iter++){
+	for (iter = 0; iter < 8; iter++){
 		instantDNA.DAC_Coil_Voltage = iter * 0.25;
 		setup_DAC(DAC_COIL);
 		
@@ -948,6 +966,24 @@ void EndReferenceTemp(){
 	while (SPIMessage_Available == 0x00){}
 	SPIMessage_Available = 0;
 	HAL_GPIO_WritePin(IRQ_Frame_GPIO_Port, IRQ_Frame_Pin, GPIO_PIN_RESET);
+	
+}
+
+void SetReferenceTemp(float Temp){
+	
+	float SensedTemp = 0.0;
+	
+	instantDNA.DAC_Coil_Voltage = 2.0;
+	setup_DAC(DAC_COIL);
+	
+	while (SensedTemp < Temp) {
+		ReadReferenceTemp();
+		SensedTemp = DS18B20.RefTemp;
+		SendReferenceTemp();
+	}
+		
+	instantDNA.DAC_Coil_Voltage = 0.0;
+	setup_DAC(DAC_COIL);
 	
 }
 
