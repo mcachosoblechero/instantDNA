@@ -973,7 +973,7 @@ void SetReferenceTemp(float Temp){
 	
 	float SensedTemp = 0.0;
 	
-	instantDNA.DAC_Coil_Voltage = 2.0;
+	instantDNA.DAC_Coil_Voltage = 1.8;
 	setup_DAC(DAC_COIL);
 	
 	while (SensedTemp < Temp) {
