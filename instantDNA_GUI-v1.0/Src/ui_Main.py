@@ -65,7 +65,7 @@ class Ui_Main(QtWidgets.QWidget):
 		self.PushButton3.clicked.connect(self.OpenDebugMenu)
 
 		# Establish initial plots
-		self.iDNA_driver.SetupPlots(self.Ui_DebugRunTest.graphicsView, self.Ui_DebugRunTest.graphicsView_2)
+		# self.iDNA_driver.SetupPlots(self.Ui_DebugRunTest.graphicsView, self.Ui_DebugRunTest.graphicsView_2)
 
 		self.OpenMainMenu()
 

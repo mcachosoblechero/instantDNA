@@ -49,7 +49,7 @@ class Ui_DebugRunTest(QtWidgets.QWidget):
 		"font: 10pt \"Arial Rounded MT Bold\";\n"
 		"border-radius: 25px;")
 
-		self.comboBox.addItems(["Obtain Samples", "Charact. Curves", "Calibrate Array", "Temp Control", "LAMP", "PCR", "Chip Temp Charact.", "Temp Noise", "Obtain Ref Temp", "Charact. Coil Ref Temp", "Charact. Coil Dynamics", "Generate Wave - Ref. Elect.", "Chemical Noise"])
+		self.comboBox.addItems(["Obtain Samples", "Charact. Curves", "Calibrate Array", "Temp Control", "LAMP", "PCR", "Chip Temp Charact.", "Temp Noise", "Obtain Ref Temp", "Charact. Coil Ref Temp", "Charact. Coil Dynamics", "Generate Wave - Ref. Elect.", "Chemical Noise", "Drift Analysis"])
 	
 		self.save = QtWidgets.QPushButton(self.stack)
 		self.save.setGeometry(QtCore.QRect(110, 710, 111, 45))
@@ -77,108 +77,75 @@ class Ui_DebugRunTest(QtWidgets.QWidget):
 		self.exit.setObjectName("exit")
 		self.exit.setText("Exit")
 
-    
-	def Test_ObtainSample(self, iDNA_driver):
-		print("Running Test: Obtain samples")
-		iDNA_driver.SetupPlots(self.graphicsView, self.graphicsView_2)
-		iDNA_driver.RequestFrame()
-		
-	def Test_CharactCurves(self, iDNA_driver):
-		print("Running Test: Obtain Characterisation Curves")
-		iDNA_driver.SetupPlots(self.graphicsView, self.graphicsView_2)
-		iDNA_driver.ObtainCharactCurves()
-		
-	def Test_CalibArray(self, iDNA_driver):
-		print("Running Test: Calibrate Array")
-		iDNA_driver.SetupPlots(self.graphicsView, self.graphicsView_2)
-		iDNA_driver.CalibArray()
-
-	def Test_TempControl(self, iDNA_driver):
-		print("Running Test: Temperature Control")
-		iDNA_driver.SetupPlots(self.graphicsView, self.graphicsView_2)
-		iDNA_driver.TempControl()
-
-	def Test_LAMPTest(self, iDNA_driver):
-		iDNA_driver.SetupPlots(self.graphicsView, self.graphicsView_2)
-		iDNA_driver.LAMPControl()
-		print("Running Test: LAMP Test")
-    
-	def Test_PCRTest(self, iDNA_driver):
-		iDNA_driver.SetupPlots(self.graphicsView, self.graphicsView_2)
-		iDNA_driver.PCRControl()
-		print("Running Test: PCR Test")
-
-	def Test_TempCharact(self, iDNA_driver):
-		iDNA_driver.SetupPlots(self.graphicsView, self.graphicsView_2)
-		iDNA_driver.TempCharact()
-		print("Running Test: Temperature Characterisation")
-
-	def Test_TempNoise(self, iDNA_driver):
-		iDNA_driver.SetupPlots(self.graphicsView, self.graphicsView_2)
-		iDNA_driver.TempNoise()
-		print("Running Test: Temperature Noise")
-
-	def Test_ObtainRefTemp(self, iDNA_driver):
-		iDNA_driver.SetupPlots(self.graphicsView, self.graphicsView_2)
-		iDNA_driver.ObtainRefTemp()
-		print("Running Test: Obtain Reference Temperature")
-
-	def Test_TempCoilCharact(self, iDNA_driver):
-		iDNA_driver.SetupPlots(self.graphicsView, self.graphicsView_2)
-		iDNA_driver.TempCoilCharact()
-		print("Running Test: Characterise Coil At Different Temperatures")
-
-	def Test_TempCoilDynamic(self, iDNA_driver):
-		iDNA_driver.SetupPlots(self.graphicsView, self.graphicsView_2)
-		iDNA_driver.TempCoilDynamics()
-		print("Running Test: Characterise Coil Dynamics")
-
-	def Test_WaveGen(self, iDNA_driver):
-		iDNA_driver.SetupPlots(self.graphicsView, self.graphicsView_2)
-		iDNA_driver.WaveGen()
-		print("Running Test: Generate Waveform through Ref. Elect.")
-
-	def Test_ChemNoise(self, iDNA_driver):
-		iDNA_driver.SetupPlots(self.graphicsView, self.graphicsView_2)
-		iDNA_driver.ChemNoise()
-		print("Running Test: Chemical Noise")
 
 	def display(self, iDNA_driver):
-		if iDNA_driver.State == "Ready":
+		if not iDNA_driver.CmdBoard.isBusy():
 			self.comboText = int(self.comboBox.currentIndex())
 			if self.comboText == 0:
-				self.Test_ObtainSample(iDNA_driver)
+				Controler = "Debug"
+				Action = "RequestFrame"
+
 			elif self.comboText == 1:
-				self.Test_CharactCurves(iDNA_driver)
+				Controler = "Debug"
+				Action = "CharactCurves"
+
 			elif self.comboText == 2:
-				self.Test_CalibArray(iDNA_driver)
+				Controler = "Debug"
+				Action = "CalibArray"
+
 			elif self.comboText == 3:
-				self.Test_TempControl(iDNA_driver)
+				Controler = "Debug"
+				Action = "TempControl"
+
 			elif self.comboText == 4:
-				self.Test_LAMPTest(iDNA_driver)  
+				Controler = "Debug"
+				Action = "LAMP"
+
 			elif self.comboText == 5:
-				self.Test_PCRTest(iDNA_driver)  
+				Controler = "Debug"
+				Action = "PCR"
+
 			elif self.comboText == 6:
-				self.Test_TempCharact(iDNA_driver) 
+				Controler = "Debug"
+				Action = "TempCharact"
+ 
 			elif self.comboText == 7:
-				self.Test_TempNoise(iDNA_driver)
+				Controler = "Debug"
+				Action = "TempNoise"
+
 			elif self.comboText == 8:
-				self.Test_ObtainRefTemp(iDNA_driver) 
+				Controler = "Debug"
+				Action = "ObtainRefTemp"
+ 
 			elif self.comboText == 9:
-				self.Test_TempCoilCharact(iDNA_driver) 
+				Controler = "Debug"
+				Action = "TempCoilCharact"
+	
 			elif self.comboText == 10:
-				self.Test_TempCoilDynamic(iDNA_driver) 
+				Controler = "Debug"
+				Action = "TempCoilDynamics"
+				
 			elif self.comboText == 11:
-				self.Test_WaveGen(iDNA_driver)
+				Controler = "Debug"
+				Action = "WaveGen"
+
 			elif self.comboText == 12:
-				self.Test_ChemNoise(iDNA_driver)
+				Controler = "Debug"
+				Action = "ChemNoise"
+
+			elif self.comboText == 13:
+				Controler = "Drift"
+				Action = ""
+			
+			iDNA_driver.CmdBoard.Controllers[Controler].LaunchController(Action, self.graphicsView, self.graphicsView_2)
+
 
 	def __init__(self, Main, iDNA_driver):
 		self.stack = QtWidgets.QWidget()
 		self.setupUi()
 		self.pushButton.clicked.connect(partial(self.display, iDNA_driver))
 		self.exit.clicked.connect(Main.OpenMainMenu)
-		self.exit.clicked.connect(iDNA_driver.EndOngoingTest)
+		self.exit.clicked.connect(iDNA_driver.CmdBoard.FinishAllActions)
 
 if __name__ == "__main__":
 	import sys
