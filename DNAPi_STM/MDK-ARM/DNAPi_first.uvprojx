@@ -338,7 +338,7 @@
               <MiscControls></MiscControls>
               <Define>USE_HAL_DRIVER,STM32F405xx</Define>
               <Undefine></Undefine>
-              <IncludePath>../Inc;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;../Src/OneWireInterface</IncludePath>
+              <IncludePath>../Inc;               ../Drivers/STM32F4xx_HAL_Driver/Inc;               ../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;               ../Drivers/CMSIS/Device/ST/STM32F4xx/Include;               ../Drivers/CMSIS/Include;               ../Src/OneWireInterface</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -398,21 +398,6 @@
               <FilePath>../src/instantDNA.h</FilePath>
             </File>
             <File>
-              <FileName>main.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../Src/main.c</FilePath>
-            </File>
-            <File>
-              <FileName>stm32f4xx_it.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../Src/stm32f4xx_it.c</FilePath>
-            </File>
-            <File>
-              <FileName>stm32f4xx_hal_msp.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../Src/stm32f4xx_hal_msp.c</FilePath>
-            </File>
-            <File>
               <FileName>tm_stm32_delay.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Src\OneWireInterface\tm_stm32_delay.c</FilePath>
@@ -451,6 +436,26 @@
               <FileName>tm_stm32_ds18b20.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Src\OneWireInterface\tm_stm32_ds18b20.c</FilePath>
+            </File>
+            <File>
+              <FileName>DriftAnalysis.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Src\DriftAnalysis.h</FilePath>
+            </File>
+            <File>
+              <FileName>main.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Src/main.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32f4xx_it.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Src/stm32f4xx_it.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32f4xx_hal_msp.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Src/stm32f4xx_hal_msp.c</FilePath>
             </File>
           </Files>
         </Group>

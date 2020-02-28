@@ -20,11 +20,12 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include <math.h>
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "instantDNA.h"
+#include "DriftAnalysis.h"
+#include <math.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -50,8 +51,9 @@ SPI_HandleTypeDef hspi2;
 
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
-TIM_HandleTypeDef htim4;
 TIM_HandleTypeDef htim5;
+TIM_HandleTypeDef htim7;
+TIM_HandleTypeDef htim9;
 
 /* USER CODE BEGIN PV */
 
@@ -67,14 +69,14 @@ static void MX_TIM2_Init(void);
 static void MX_TIM5_Init(void);
 static void MX_DAC_Init(void);
 static void MX_TIM3_Init(void);
-static void MX_TIM4_Init(void);
+static void MX_TIM9_Init(void);
+static void MX_TIM7_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
 
 /* USER CODE END 0 */
 
@@ -102,7 +104,8 @@ int main(void)
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-
+	InitPlatform();
+	InitReferenceTemp();
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
@@ -113,17 +116,17 @@ int main(void)
   MX_TIM5_Init();
   MX_DAC_Init();
   MX_TIM3_Init();
-  MX_TIM4_Init();
+  MX_TIM9_Init();
+  MX_TIM7_Init();
   /* USER CODE BEGIN 2 */
 	/* Initialize platform and all DAC to Default values */
-	InitPlatform();
-	InitReferenceTemp();
 	HAL_GPIO_WritePin(N5V_EN_GPIO_Port, N5V_EN_Pin, GPIO_PIN_SET);
 	setup_DAC(DAC_VREF);
 	setup_DAC(DAC_VBIAS);
 	setup_DAC(DAC_IOTA);
 	setup_DAC(DAC_REFELEC);
 	setup_DAC(DAC_PELTIER);
+	setup_DAC(DAC_COIL);
 
   /* USER CODE END 2 */
 
@@ -179,6 +182,7 @@ int main(void)
 			
 			case OBTAIN_FRAME:
 				ObtainAndSendFrame_Chem(FrameBuffer);
+				Send_EndOfAction_FrameCalib(FrameBuffer);
 				tx[0] = 0xAA;
 				tx[1] = 0x00;
 				tx[2] = 0x00;
@@ -235,8 +239,16 @@ int main(void)
 				TempCoilDynamics();
 				break;
 			
-			case WAVEFORM_GEN:
+/*			case WAVEFORM_GEN:
 				WaveGen(FrameBuffer);
+				break;*/
+			
+			case CHEM_NOISE:
+				ChemNoise(FrameBuffer);
+				break;
+			
+			case DRIFT_ANALYSIS:
+				Launch_DriftAnalysis(FrameBuffer);
 				break;
 			
 			default:
@@ -533,51 +545,6 @@ static void MX_TIM3_Init(void)
 }
 
 /**
-  * @brief TIM4 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM4_Init(void)
-{
-
-  /* USER CODE BEGIN TIM4_Init 0 */
-
-  /* USER CODE END TIM4_Init 0 */
-
-  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
-  TIM_MasterConfigTypeDef sMasterConfig = {0};
-
-  /* USER CODE BEGIN TIM4_Init 1 */
-
-  /* USER CODE END TIM4_Init 1 */
-  htim4.Instance = TIM4;
-  htim4.Init.Prescaler = 1;
-  htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim4.Init.Period = 4200;
-  htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&htim4) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
-  if (HAL_TIM_ConfigClockSource(&htim4, &sClockSourceConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim4, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM4_Init 2 */
-
-  /* USER CODE END TIM4_Init 2 */
-
-}
-
-/**
   * @brief TIM5 Initialization Function
   * @param None
   * @retval None
@@ -593,14 +560,15 @@ static void MX_TIM5_Init(void)
   TIM_SlaveConfigTypeDef sSlaveConfig = {0};
   TIM_IC_InitTypeDef sConfigIC = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_OC_InitTypeDef sConfigOC = {0};
 
   /* USER CODE BEGIN TIM5_Init 1 */
 
   /* USER CODE END TIM5_Init 1 */
   htim5.Instance = TIM5;
-  htim5.Init.Prescaler = 0;
+  htim5.Init.Prescaler = 1;
   htim5.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim5.Init.Period = 0xFFFFFFFF;
+  htim5.Init.Period = 4200;
   htim5.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim5.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim5) != HAL_OK)
@@ -609,6 +577,10 @@ static void MX_TIM5_Init(void)
   }
   sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
   if (HAL_TIM_ConfigClockSource(&htim5, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_PWM_Init(&htim5) != HAL_OK)
   {
     Error_Handler();
   }
@@ -645,9 +617,98 @@ static void MX_TIM5_Init(void)
   {
     Error_Handler();
   }
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = 0;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_PWM_ConfigChannel(&htim5, &sConfigOC, TIM_CHANNEL_3) != HAL_OK)
+  {
+    Error_Handler();
+  }
   /* USER CODE BEGIN TIM5_Init 2 */
 
   /* USER CODE END TIM5_Init 2 */
+
+}
+
+/**
+  * @brief TIM7 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM7_Init(void)
+{
+
+  /* USER CODE BEGIN TIM7_Init 0 */
+
+  /* USER CODE END TIM7_Init 0 */
+
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM7_Init 1 */
+
+  /* USER CODE END TIM7_Init 1 */
+  htim7.Instance = TIM7;
+  htim7.Init.Prescaler = 65535;
+  htim7.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim7.Init.Period = 1281;
+  htim7.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim7) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim7, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM7_Init 2 */
+
+	
+  /* USER CODE END TIM7_Init 2 */
+
+}
+
+/**
+  * @brief TIM9 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM9_Init(void)
+{
+
+  /* USER CODE BEGIN TIM9_Init 0 */
+
+  /* USER CODE END TIM9_Init 0 */
+
+  TIM_OC_InitTypeDef sConfigOC = {0};
+
+  /* USER CODE BEGIN TIM9_Init 1 */
+
+  /* USER CODE END TIM9_Init 1 */
+  htim9.Instance = TIM9;
+  htim9.Init.Prescaler = 1;
+  htim9.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim9.Init.Period = instantDNA.PWM_Coil_Frequency;
+  htim9.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim9.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_PWM_Init(&htim9) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = instantDNA.PWM_Coil_HighTime;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_PWM_ConfigChannel(&htim9, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM9_Init 2 */
+
+  /* USER CODE END TIM9_Init 2 */
+  HAL_TIM_MspPostInit(&htim9);
 
 }
 
@@ -753,12 +814,15 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 			}
 		}
 	}
-	else if (htim == &htim4){
+/*	else if (htim == &htim4){
 		instantDNA.DAC_RefElect_SineWave_Time++;
 		instantDNA.DAC_RefElect_SineWave_Radians = (float)instantDNA.DAC_RefElect_SineWave_Time * (2 * 3.1416) / 360.0;
 		instantDNA.DAC_RefElect_SineWave = 0.1 * sin(instantDNA.DAC_RefElect_SineWave_Radians);
 		instantDNA.DAC_RefElect_Voltage = instantDNA.DAC_RefElect_DC + instantDNA.DAC_RefElect_SineWave;
 		setup_DAC(DAC_REFELEC);
+	}*/
+	else if (htim == &htim7){
+		Sampling_ElapsedTime++;
 	}
 	
 }

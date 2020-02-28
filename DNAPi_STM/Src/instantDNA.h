@@ -8,6 +8,7 @@ extern "C" {
 #include "stm32f4xx_hal.h"
 #include "tm_stm32_ds18b20.h"
 #include "main.h"
+#include "DriftAnalysis.h"
 #include <stdlib.h>
 
 // DAC SELECTION
@@ -45,7 +46,9 @@ extern "C" {
 #define TEMP_NOISE 						0x0F
 #define TEMP_COILCHARACT			0x10
 #define TEMP_COILDYNAMIC			0x11
-#define WAVEFORM_GEN					0x12
+//#define WAVEFORM_GEN					0x12
+#define CHEM_NOISE						0x13
+#define DRIFT_ANALYSIS				0x14
 
 #define PIXEL_TIMEOUT		10 // -> 1ms @ 84MHz
 #define PIXEL_PRESCALER 4		// -> 1 sample every 4 samples
@@ -55,12 +58,46 @@ extern "C" {
 #define NUMCOLS				0x20			// 32
 #define NUMPIXELS			1024
 #define DAC_VREF_DEFAULT			0.2
-#define DAC_VBIAS_DEFAULT			0.18
+#define DAC_VBIAS_DEFAULT			0.28
 #define DAC_IOTA_DEFAULT			0.3
 #define DAC_REFELECT_DEFAULT	0.0
 #define DAC_PELTIER_DEFAULT 	0.0
 #define DAC_COIL_DEFAULT			0.0
 #define DAC_COIL_MAX					2.5
+#define PWM_COIL_FREQUENCY		4200
+//#define PWM_COIL_DUTYCYCLE    0.22  // MAX Duty Cycle for heating
+//#define PWM_COIL_HIGHVALUE		924 	// For a frequency of 4200, high value max
+//#define PWM_COIL_HIGHVALUE 		1008
+//#define PWM_COIL_DUTYCYCLE 		0.24
+//#define PWM_COIL_HIGHVALUE 		1092
+//#define PWM_COIL_DUTYCYCLE 		0.26
+//#define PWM_COIL_HIGHVALUE 		1176
+//#define PWM_COIL_DUTYCYCLE 		0.28
+//#define PWM_COIL_HIGHVALUE 		1260
+//#define PWM_COIL_DUTYCYCLE 		0.3
+//#define PWM_COIL_HIGHVALUE 		1344
+//#define PWM_COIL_DUTYCYCLE 		0.32
+//#define PWM_COIL_HIGHVALUE 		1428
+//#define PWM_COIL_DUTYCYCLE 		0.34
+//#define PWM_COIL_HIGHVALUE 		1512
+//#define PWM_COIL_DUTYCYCLE 		0.36
+//#define PWM_COIL_HIGHVALUE 		1680
+//#define PWM_COIL_DUTYCYCLE 		0.4
+//#define PWM_COIL_HIGHVALUE 		1890
+//#define PWM_COIL_DUTYCYCLE 		0.45
+//#define PWM_COIL_HIGHVALUE 		2016
+//#define PWM_COIL_DUTYCYCLE 		0.48
+//#define PWM_COIL_HIGHVALUE 		2100
+//#define PWM_COIL_DUTYCYCLE 		0.50
+//#define PWM_COIL_HIGHVALUE 		2310
+//#define PWM_COIL_DUTYCYCLE 		0.55
+#define PWM_COIL_HIGHVALUE 		2520
+#define PWM_COIL_DUTYCYCLE 		0.60
+
+// CHARACT CURVES PARAMETERS
+#define CHARACTCURVE_INITIAL	-1.0
+#define CHARACTCURVE_END			0.0
+#define CHARACTCURVE_STEP			0.25
 
 // CALIBRATION PARAMETERS
 #define CALIB_DC_MAXITER			25
@@ -69,16 +106,28 @@ extern "C" {
 #define CALIB_FREQ_MAXITER		10
 #define CALIB_FREQ_MINLRANGE	0.48
 #define CALIB_FREQ_MAXLRANGE	0.52
-#define TEMP_ROW							16
-#define TEMP_COLUMN						16
 #define CONTROLLER_KP					175
 #define ON_LIMIT							0.85
 #define OFF_LIMIT							0.15
+
+// SINGLE PIXEL PARAMETERS
+#define TEMP_ROW							16
+#define TEMP_COLUMN						16
+#define CHEM_ROW							16
+#define CHEM_COLUMN						16
 
 // TEST PARAMETERS
 #define SAMPLES_TNOISE					100000
 #define SAMPLES_TCHARACT				10
 #define SAMPLES_REFTEMP					100
+#define SAMPLES_CNOISE					10000
+
+// RESOLUTION TEST PARAMETERS
+#define RESOLUTION_SAMPLES			1
+
+// TEMP COIL MODE
+#define TEMPCOIL_MODE						1    // 0 -> Voltage; 1 -> PWM
+
 
 /************* PLATFORM VARIABLES ***********/
 extern DAC_HandleTypeDef hdac;
@@ -88,8 +137,9 @@ extern SPI_HandleTypeDef hspi2;
 
 extern TIM_HandleTypeDef htim2;
 extern TIM_HandleTypeDef htim3;
-extern TIM_HandleTypeDef htim4;
+//extern TIM_HandleTypeDef htim4;
 extern TIM_HandleTypeDef htim5;
+extern TIM_HandleTypeDef htim9;
 /********************************************/
 
 /************* GLOBAL VARIABLES *************/
@@ -114,6 +164,9 @@ struct PlatformParameters {
 	float DAC_RefElect_SineWave;
 	int DAC_RefElect_SineWave_Time;
 	float DAC_RefElect_SineWave_Radians;
+	
+	int PWM_Coil_Frequency;
+	int PWM_Coil_HighTime;
 	
 };
 
@@ -156,6 +209,8 @@ struct ReferenceTempParam DS18B20;
 volatile int FrameBuffer[3072];
 volatile int PixelBuffer[2];
 
+extern enum DA_States DA_State;
+
 /*********************************************/
 
 // FUNCTIONS HEADERS
@@ -164,9 +219,11 @@ void InitPlatform(void);
 void TestOnChipDAC_Platform(void);
 void ObtainCharactCurves(volatile int*);
 void ObtainAndSendFrame_Chem(volatile int*);
+void ObtainAndSendPixel_Chem(volatile int*);
 void ObtainAndSendFrame_Temp(volatile int*);
 void ObtainAndSendPixel_Temp(volatile int*);
 void Calib_Array_Chem_STM(volatile int*);
+void Calib_Pixel_Chem_STM(volatile int*);
 void Calib_Array_Temp_STM(volatile int*);
 void Calib_Pixel_Temp_STM(volatile int*);
 void TempControl(float, volatile int*);
@@ -177,7 +234,9 @@ void TempNoise(volatile int*);
 void TempRefSensorCharact(void);
 void TempCoilCharact(void);
 void TempCoilDynamics(void);
-void WaveGen(volatile int*);
+//void WaveGen(volatile int*);
+void ChemNoise(volatile int*);
+void Launch_DriftAnalysis(volatile int*);
 /******* DRIVERS **************************/
 void WaitSPICommand(void);
 uint16_t voltage_to_dac(float voltage, float max, float min);
@@ -187,11 +246,13 @@ void setup_DAC(char DAC_Select);
 void setup_Chip(char Enable, char Row, char Column, int DAC_Value, char DAC_Source, char DAC_Debug);
 void Start_Timers(void);
 void Stop_Timers(void);
+void Start_PWM_Timer(void);
+void Stop_PWM_Timer(void);
 volatile int* ObtainFrame(volatile int*, volatile int*);
 volatile int* ObtainPixel(volatile int*, int, int, volatile int*);
 void SendFrame_RPi(volatile int*);
 void SendPixel_RPi(volatile int*);
-void SendFrameAndCalibration_RPi(volatile int*);
+void SendFrameAndCalibration_RPi(volatile int*, volatile int*);
 void CalculateFrameDutyCycle(volatile int*);
 void CalculatePixelDutyCycle(volatile int*);
 void Send_EndOfAction_Frame(volatile int*);
@@ -204,12 +265,14 @@ void EndReferenceTemp(void);
 void SetReferenceTemp(float);
 int CalibrationController(float);
 void Delay_2ms(void);
-void StartWaveformGeneration(void);
-void EndWaveformGeneration(void);
+//void StartWaveformGeneration(void);
+//void EndWaveformGeneration(void);
+void SetCoilPWM(void);
 /*********************************************************************/
 
-// FUNCTIONS DEFINITION
+/***********************************************************/
 /*********** HIGH LEVEL FUNCTIONS **************************/
+/***********************************************************/
 void InitPlatform(void){
 	
 	instantDNA.NumRows = NUMROWS;
@@ -224,21 +287,30 @@ void InitPlatform(void){
 	for (i = 0; i < 1024; i++) instantDNA.CalibrationBuffer_Frequency[i] = 1024;
 	instantDNA.DAC_RefElect_SineWave = 0;
 	instantDNA.DAC_RefElect_SineWave_Time = 0;
+	instantDNA.PWM_Coil_Frequency = PWM_COIL_FREQUENCY;
+	instantDNA.PWM_Coil_HighTime = 0;
 	
 }
 
 void ObtainAndSendFrame_Chem(volatile int *FrameBuf){
 	
 	FrameBuf = ObtainFrame(FrameBuf, instantDNA.CalibrationBuffer_DutyCycle);
-	SendFrame_RPi(FrameBuf);
+	SendFrameAndCalibration_RPi(FrameBuf, instantDNA.CalibrationBuffer_DutyCycle);
 	
+}
+
+void ObtainAndSendPixel_Chem(volatile int *PixelBuf){
+
+	PixelBuf = ObtainPixel(PixelBuf, CHEM_ROW, CHEM_COLUMN, instantDNA.CalibrationBuffer_DutyCycle);
+	SendPixel_RPi(PixelBuf);
+
 }
 
 void ObtainAndSendFrame_Temp(volatile int *FrameBuf){
 
 	Calib_Array_Temp_STM(FrameBuf);
 	FrameBuf = ObtainFrame(FrameBuf, instantDNA.CalibrationBuffer_Frequency);
-	SendFrameAndCalibration_RPi(FrameBuf);
+	SendFrameAndCalibration_RPi(FrameBuf, instantDNA.CalibrationBuffer_Frequency);
 
 }
 
@@ -264,18 +336,18 @@ void TestOnChipDAC_Platform(void){
 
 void ObtainCharactCurves(volatile int *FrameBuf){
 	
-	instantDNA.DAC_RefElect_Voltage = -1.5;
+	instantDNA.DAC_RefElect_Voltage = CHARACTCURVE_INITIAL;
 	
-	while (instantDNA.DAC_RefElect_Voltage < (float)1.5){
+	while (instantDNA.DAC_RefElect_Voltage < (float)CHARACTCURVE_END){
 		setup_DAC(DAC_REFELEC);
 		FrameBuf = ObtainFrame(FrameBuf, instantDNA.CalibrationBuffer_DutyCycle);
 		FrameBuf = ObtainFrame(FrameBuf, instantDNA.CalibrationBuffer_DutyCycle); // Second frame for stabilisation
-		SendFrame_RPi(FrameBuf);
-		instantDNA.DAC_RefElect_Voltage += (float)0.025;
+		SendFrameAndCalibration_RPi(FrameBuf, instantDNA.CalibrationBuffer_DutyCycle);
+		instantDNA.DAC_RefElect_Voltage += (float)CHARACTCURVE_STEP;
 	}
 	
 	Delay_2ms();
-	Send_EndOfAction_Frame(FrameBuf);
+	Send_EndOfAction_FrameCalib(FrameBuf);
 	
 }
 
@@ -328,7 +400,7 @@ void Calib_Array_Chem_STM(volatile int *FrameBuf){
 		}
 		
 		if ((NumPixels_Osc - PrevNumPixels_Osc < 0) && (PrevNumPixels_Osc > 200)) Flag = 1;
-		SendFrame_RPi(FrameBuf);
+		SendFrameAndCalibration_RPi(FrameBuf, instantDNA.CalibrationBuffer_DutyCycle);
 	}
 	
 	instantDNA.DAC_RefElect_Voltage -= RefStep;
@@ -362,7 +434,7 @@ void Calib_Array_Chem_STM(volatile int *FrameBuf){
 
 		// Calculate NumCalibPixels
 		NumIter++;	
-		SendFrame_RPi(FrameBuf);
+		SendFrameAndCalibration_RPi(FrameBuf,instantDNA.CalibrationBuffer_DutyCycle);
 		
 	}
 	
@@ -371,6 +443,39 @@ void Calib_Array_Chem_STM(volatile int *FrameBuf){
 	
 	for(pixel = 0; pixel<1024; pixel++) instantDNA.CalibrationBuffer_Frequency[pixel] = instantDNA.CalibrationBuffer_DutyCycle[pixel];
 	
+}
+
+void Calib_Pixel_Chem_STM(volatile int *PixelBuf){
+
+	char CalibDone = 0; 
+	int NumIter = 0;
+	const int TempPixel = CHEM_ROW+CHEM_COLUMN*NUMROWS;
+	
+	/****************************************/
+	/* Step 2 - Set Calib Values						*/
+	/****************************************/
+	while (!CalibDone && NumIter < CALIB_FREQ_MAXITER){
+	
+		PixelBuf = ObtainPixel(PixelBuf, CHEM_ROW, CHEM_COLUMN, instantDNA.CalibrationBuffer_DutyCycle);
+		CalculatePixelDutyCycle(PixelBuf);
+		
+		if ((instantDNA.DutyCycleBuffer[0] >= (float)CALIB_FREQ_MINLRANGE && 
+				instantDNA.DutyCycleBuffer[0] <= (float)CALIB_FREQ_MAXLRANGE) || 
+				instantDNA.CalibrationBuffer_DutyCycle[TempPixel] <= 0 || 
+				instantDNA.CalibrationBuffer_DutyCycle[TempPixel] >= 2047){
+			CalibDone = 1;
+		}
+			
+			// Controller
+		instantDNA.CalibrationBuffer_DutyCycle[TempPixel] += CalibrationController(instantDNA.DutyCycleBuffer[0]);
+		
+		// Prevent overflow
+		if (instantDNA.CalibrationBuffer_DutyCycle[TempPixel] > 2047) instantDNA.CalibrationBuffer_DutyCycle[TempPixel] = 2047;
+		else if (instantDNA.CalibrationBuffer_DutyCycle[TempPixel] < 0) instantDNA.CalibrationBuffer_DutyCycle[TempPixel] = 0;
+
+		// Calculate NumCalibPixels
+		NumIter++;	
+	}
 }
 
 void Calib_Array_Temp_STM(volatile int *FrameBuf){
@@ -470,13 +575,15 @@ void TempControl(float Temp, volatile int* PixBuf){
 void LAMPControl(float Temp, volatile int* FrameBuf){
 	instantDNA.DAC_Peltier_Voltage = (float)2.75;
 	setup_DAC(DAC_PELTIER);
-	Send_EndOfAction_Frame(FrameBuf);
+	instantDNA.DAC_Peltier_Voltage = (float)0.0;
+	setup_DAC(DAC_PELTIER);
+	Send_EndOfAction_FrameCalib(FrameBuf);
 }
 
 void PCRControl(volatile int* FrameBuf, int NumCycles){
 	
 	/* Set initial temperature for testing cooling */
-	SetReferenceTemp(65.0);
+	SetReferenceTemp(95.0);
 	
 	instantDNA.DAC_Peltier_Voltage = (float)2.5; // <- This is mid-range, you can try increasing this until 5V. If so, keep an eye on the rest of the components
 	setup_DAC(DAC_PELTIER);
@@ -585,7 +692,7 @@ void TempCoilDynamics(void){
 
 }
 
-void WaveGen(volatile int* FrameBuf){
+/*void WaveGen(volatile int* FrameBuf){
 
 	int j;
 	
@@ -598,13 +705,38 @@ void WaveGen(volatile int* FrameBuf){
 	instantDNA.DAC_RefElect_Voltage = instantDNA.DAC_RefElect_DC;
 	
 	Delay_2ms();
-	Send_EndOfAction_Frame(FrameBuf);
+	Send_EndOfAction_FrameCalib(FrameBuf);
+	
+*/
+
+void ChemNoise(volatile int* PixelBuf){
+	
+	int j;
+	
+	Calib_Pixel_Chem_STM(PixelBuf);
+	for(j = 0; j < SAMPLES_CNOISE; j++) ObtainAndSendPixel_Chem(PixelBuf);
+	Delay_2ms();
+	Send_EndOfAction_Pixel(PixelBuf);
 	
 }
 
+void Launch_DriftAnalysis(volatile int* FrameBuf){
 
+	DA_State = FSM_Start; // Indicates initial call
+	while(DA_State != FSM_Finished) {
+		TickFSM_DA(FrameBuf);
+	}
+	
+	Delay_2ms();
+	Send_EndOfAction_FrameCalib(FrameBuf);
+	
+}
+
+/***********************************************************/
+
+/***********************************************************/
 /************************ DRIVERS **************************/
-
+/***********************************************************/
 
 void Start_Timers(void){
 
@@ -640,6 +772,24 @@ void Stop_Timers(void){
 	{
 		Error_Handler();
 	}
+	/*******************/
+	
+}
+
+void Start_PWM_Timer(void){
+
+	/*******************/
+	/* Start the timer */
+	HAL_TIM_PWM_Start(&htim9, TIM_CHANNEL_1);
+	/*******************/
+	
+}
+
+void Stop_PWM_Timer(void){
+
+	/*******************/
+	/* Close the timer */
+	HAL_TIM_PWM_Stop(&htim9, TIM_CHANNEL_1);
 	/*******************/
 	
 }
@@ -689,8 +839,8 @@ void setup_DAC(char DAC_Select)
 			break;
 			
 		case DAC_VBIAS:
-			data_to_send = dac_to_binary(voltage_to_dac(0.275, 3.24, 0));
-			//data_to_send = dac_to_binary(voltage_to_dac(instantDNA.DAC_VBias_Voltage, 3.24, 0));
+			//data_to_send = dac_to_binary(voltage_to_dac(0.275, 3.24, 0));
+			data_to_send = dac_to_binary(voltage_to_dac(instantDNA.DAC_VBias_Voltage, 3.24, 0));
 			HAL_GPIO_WritePin(GPIOC, V_BIAS_CS_Pin, GPIO_PIN_RESET);
 			HAL_SPI_Transmit(&hspi2, (uint8_t*)&data_to_send, 2, 256);
 			HAL_GPIO_WritePin(GPIOC, V_BIAS_CS_Pin, GPIO_PIN_SET);
@@ -833,11 +983,11 @@ void SendPixel_RPi(volatile int* PixelBuf){
 
 }
 
-void SendFrameAndCalibration_RPi(volatile int* FrameBuf){
+void SendFrameAndCalibration_RPi(volatile int* FrameBuf, volatile int* Calib){
 
 	int pixel;
 	
-	for(pixel = 0; pixel < NUMPIXELS; pixel++)  FrameBuf[pixel+2048]= instantDNA.CalibrationBuffer_Frequency[pixel];
+	for(pixel = 0; pixel < NUMPIXELS; pixel++)  FrameBuf[pixel+2048]= Calib[pixel];
 	
 	HAL_SPI_TransmitReceive_IT(&hspi1, (uint8_t *)FrameBuf, (uint8_t *)FrameBuf, 12288);
 	HAL_GPIO_WritePin(IRQ_Frame_GPIO_Port, IRQ_Frame_Pin, GPIO_PIN_SET);
@@ -896,7 +1046,7 @@ void Send_EndOfAction_FrameCalib(volatile int* FrameBuf){
 	FrameBuf[0] = 0xAAAAAAAA;
 	FrameBuf[1] = 0xAAAAAAAA;
 	Delay_2ms();
-	SendFrameAndCalibration_RPi(FrameBuf);
+	SendFrameAndCalibration_RPi(FrameBuf, instantDNA.CalibrationBuffer_Frequency);
 	
 }
 
@@ -972,22 +1122,33 @@ void EndReferenceTemp(){
 void SetReferenceTemp(float Temp){
 	
 	float SensedTemp = 0.0;
-	
-	instantDNA.DAC_Coil_Voltage = 1.8;
-	setup_DAC(DAC_COIL);
-	
+
+	if (!TEMPCOIL_MODE){
+		instantDNA.DAC_Coil_Voltage = 1.8;
+		setup_DAC(DAC_COIL);
+	}
+	else {
+			instantDNA.PWM_Coil_HighTime = PWM_COIL_HIGHVALUE;
+			SetCoilPWM();
+			Start_PWM_Timer();			
+	}
+		
 	while (SensedTemp < Temp) {
 		ReadReferenceTemp();
 		SensedTemp = DS18B20.RefTemp;
 		SendReferenceTemp();
 	}
-		
-	instantDNA.DAC_Coil_Voltage = 0.0;
-	setup_DAC(DAC_COIL);
 	
+	if (!TEMPCOIL_MODE){
+		instantDNA.DAC_Coil_Voltage = 0.0;
+		setup_DAC(DAC_COIL);
+	}
+	else {
+		Stop_PWM_Timer();
+	}
 }
 
-void StartWaveformGeneration(void){
+/*void StartWaveformGeneration(void){
 	if (HAL_TIM_Base_Start_IT(&htim4) != HAL_OK)
 	{
 		Error_Handler();
@@ -999,6 +1160,24 @@ void EndWaveformGeneration(void){
 	{
 		Error_Handler();
 	}
+}*/
+
+void SetCoilPWM(void){
+	
+	TIM_OC_InitTypeDef sConfigOC = {0};
+
+	/* PWM ReInit */
+	HAL_TIM_PWM_Init(&htim9);
+	sConfigOC.OCMode = TIM_OCMODE_PWM1;
+	sConfigOC.Pulse = instantDNA.PWM_Coil_HighTime;
+	sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+	sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+	HAL_TIM_PWM_ConfigChannel(&htim9, &sConfigOC, TIM_CHANNEL_1);
+	HAL_TIM_MspPostInit(&htim9);
+	/**************/
+	
 }
+
+/***********************************************************/
 
 #endif /* __INSTANTDNA_H */
