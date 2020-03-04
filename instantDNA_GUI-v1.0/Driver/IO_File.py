@@ -8,9 +8,8 @@ class IO_File(object):
 		self.fileName = fileName
 		self.FileHandle = []
 
-
 	def OpenFile(self):
-		self.FileHandle = open(self.folderName + '/'+ self.fileName +'_'+self.Start.strftime("%Y-%d-%b_%H-%M-%S")+'.csv','w') 
+		self.FileHandle = open(self.folderName + '/'+ self.fileName +'.csv','a') 
 
 	def ElapsedTime(self):
 		diffTime = (datetime.now() - self.Start)
@@ -39,4 +38,8 @@ class IO_File(object):
 			print("ERROR - TRYING TO SAVE AN UNKNOWN DATA TYPE")
 
 	def CloseFile(self):
-		self.FileHandle.close()
+		if self.FileHandle != []:
+			self.FileHandle.close()
+
+	def UpdatePath(self, Path):
+		self.folderName = Path

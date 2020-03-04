@@ -49,7 +49,7 @@ class Ui_DebugRunTest(QtWidgets.QWidget):
 		"font: 10pt \"Arial Rounded MT Bold\";\n"
 		"border-radius: 25px;")
 
-		self.comboBox.addItems(["Obtain Samples", "Charact. Curves", "Calibrate Array", "Temp Control", "LAMP", "PCR", "Chip Temp Charact.", "Temp Noise", "Obtain Ref Temp", "Charact. Coil Ref Temp", "Charact. Coil Dynamics", "Generate Wave - Ref. Elect.", "Chemical Noise", "Drift Analysis"])
+		self.comboBox.addItems(["Obtain Samples", "Charact. Curves", "Calibrate Array", "Temp Control", "LAMP", "PCR", "Chip Temp Charact.", "Temp Noise", "Obtain Ref Temp", "Charact. Coil Ref Temp", "Charact. Coil Dynamics", "Generate Wave - Ref. Elect.", "Chemical Noise", "Drift Analysis", "MultipleFrames", "SampleForMinutes"])
 	
 		self.save = QtWidgets.QPushButton(self.stack)
 		self.save.setGeometry(QtCore.QRect(110, 710, 111, 45))
@@ -137,6 +137,14 @@ class Ui_DebugRunTest(QtWidgets.QWidget):
 				Controler = "Drift"
 				Action = ""
 			
+			elif self.comboText == 14:
+				Controler = "Debug"
+				Action = "MultipleFrames"
+
+			elif self.comboText == 15:
+				Controler = "Debug"
+				Action = "SampleFor10Minutes"
+
 			iDNA_driver.CmdBoard.Controllers[Controler].LaunchController(Action, self.graphicsView, self.graphicsView_2)
 
 

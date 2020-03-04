@@ -4,7 +4,7 @@ import struct
 import numpy as np
 from datetime import datetime
 from Driver.STM_Interface import STM_Interface
-from Driver.Controller import ListControllers, debug_Controller
+from Driver.Controller import ListControllers, debug_Controller, DriftAnalysis_Controller
 from Driver.FSM import State, Transition, FSM
 from Driver.Actions import List_Actions
 
@@ -37,6 +37,7 @@ class instantDNA:
 		#########################
 		self.CmdBoard = ListControllers()
 		self.CmdBoard.addController(debug_Controller("Debug", self.STM_Interface, 10))
+		self.CmdBoard.addController(DriftAnalysis_Controller("Drift", self.STM_Interface, 10))
 		
 		self.HelloWorld()
 
@@ -48,7 +49,7 @@ class instantDNA:
 	# INTERRUPT ##########################################
 	######################################################			
 	def isr_frame(self, gpio, level, tick):
-		print("Inerrupt!")
+		print("Interrupt!")
 		for i in self.CmdBoard.Controllers.keys():
 			if self.CmdBoard.Controllers[i].InterruptEnable == True:
 				self.CmdBoard.Controllers[i].InterruptReady = True

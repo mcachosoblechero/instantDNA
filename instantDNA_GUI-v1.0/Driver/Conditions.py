@@ -49,6 +49,10 @@ class Cond_SA_Ready(Condition):
 			State.FSM.Transition("toWaveGen")
 		elif State.FSM.cargo == "ChemNoise":
 			State.FSM.Transition("toChemNoise")
+		elif State.FSM.cargo == "MultipleFrames":
+			State.FSM.Transition("toMultipleFrames")
+		elif State.FSM.cargo == "SampleFor10Minutes":
+			State.FSM.Transition("toSampleFor10Minutes")
 
 class Cond_SA_Operation(Condition):
 	def __init__(self):
@@ -58,4 +62,12 @@ class Cond_SA_Operation(Condition):
 		if State.Action.ActionActive == 0:
 			State.FSM.Transition("toDone")
 		
+class Cond_UniqueTransition(Condition):
+	def __init__(self, nextState):
+		super(Cond_UniqueTransition,self).__init__()
+		self.nextState = nextState
+
+	def Execute(self, State):
+		if State.Action.ActionActive == 0:
+			State.FSM.Transition("to" + self.nextState)
 		

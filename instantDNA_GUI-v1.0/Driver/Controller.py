@@ -1,9 +1,11 @@
+import os
+from datetime import datetime
 from PyQt5 import QtCore
 from Driver.STM_Interface import STM_Interface
 from Driver.IO_Plots import IO_Plots
 from Driver.FSM import State, Transition, FSM
 from Driver.Actions import List_Actions, Action, No_Action
-from Driver.Conditions import Condition, Condition_Empty, Cond_SA_Ready, Cond_SA_Operation
+from Driver.Conditions import Condition, Condition_Empty, Cond_SA_Ready, Cond_SA_Operation, Cond_UniqueTransition
 
 class ListControllers(object):
 	def __init__(self):
@@ -25,6 +27,15 @@ class ListControllers(object):
 class Controller(object):
 	def __init__(self, name, Interface, Timeout=10):
 
+		#########################################
+		# EACH CONTROLLER INCLUDES AT LEAST:	#
+		# - A list of actions			#
+		# - An FSM with:			#
+		# 	-> States [Action + Condition]	#
+		#	-> Transition [Action]		#
+		# - A timer that ticks the FSM		#
+		# - A pointer to the STM Interface	#
+		#########################################
 		self.name = name
 		self.FSM = FSM(self)
 		self.Plots = IO_Plots()
@@ -42,7 +53,7 @@ class Controller(object):
 		self.Actions.Create_Action("STM", "Frame", "CalibArray", 8)
 		self.Actions.Create_Action("STM", "Frame", "LAMP", 10)
 		self.Actions.Create_Action("STM", "RefTemp", "PCR", 11)
-		self.Actions.Create_Action("STM", "Frame", "TempControl", 12)
+		self.Actions.Create_Action("STM", "Pixel", "TempControl", 12)
 		self.Actions.Create_Action("STM", "Frame", "TempCharact", 13)
 		self.Actions.Create_Action("STM", "RefTemp", "TempRefMeas", 14)
 		self.Actions.Create_Action("STM", "Pixel", "TempNoise", 15)
@@ -50,6 +61,9 @@ class Controller(object):
 		self.Actions.Create_Action("STM", "RefTemp", "TempCoilDynamics", 17)
 		self.Actions.Create_Action("STM", "Frame", "WaveGen", 18)
 		self.Actions.Create_Action("STM", "Pixel", "ChemNoise", 19)
+		self.Actions.Create_Action("STM", "Frame", "MultipleFrames", 20, 10.0)
+		self.Actions.Create_Action("STM", "Frame", "SampleFor10Minutes", 21, 10.0)
+		self.Actions.Create_Action("STM", "Frame", "DACSensitivityTest", 22)
 		self.No_Action = No_Action()
 
 		self.ControllerBusy = False
@@ -85,7 +99,12 @@ class Controller(object):
 
 class debug_Controller(Controller):
 	def __init__(self, name, Interface, Timeout=10):
+
+		self.SavePath = "Results/Debug"
+		if not os.path.exists(self.SavePath):
+			os.makedirs(self.SavePath)
 		super(debug_Controller, self).__init__(name,Interface,Timeout)
+
 		self.FSM.AddState("Ready",self.No_Action, Cond_SA_Ready())
 		self.FSM.AddState("Single_RequestFrame",self.Actions.Assing("RequestFrame"), Cond_SA_Operation())
 		self.FSM.AddState("Single_CharactCurves",self.Actions.Assing("CharactCurves"), Cond_SA_Operation())
@@ -100,6 +119,8 @@ class debug_Controller(Controller):
 		self.FSM.AddState("Single_TempCoilDynamics", self.Actions.Assing("TempCoilDynamics"), Cond_SA_Operation())
 		self.FSM.AddState("Single_WaveGen", self.Actions.Assing("WaveGen"), Cond_SA_Operation())
 		self.FSM.AddState("Single_ChemNoise", self.Actions.Assing("ChemNoise"), Cond_SA_Operation())
+		self.FSM.AddState("Single_MultipleFrames", self.Actions.Assing("MultipleFrames"), Cond_SA_Operation())
+		self.FSM.AddState("Single_SampleFor10Minutes", self.Actions.Assing("SampleFor10Minutes"), Cond_SA_Operation())		
 		self.FSM.AddState("Done", self.No_Action, Condition_Empty())
 		self.FSM.SetState("Done")
 		
@@ -116,9 +137,51 @@ class debug_Controller(Controller):
 		self.FSM.AddTransition("toTempCoilDynamics",Transition("Single_TempCoilDynamics",self.Plots.ClearAllPlots))
 		self.FSM.AddTransition("toWaveGen",Transition("Single_WaveGen",self.Plots.ClearAllPlots))
 		self.FSM.AddTransition("toChemNoise",Transition("Single_ChemNoise",self.Plots.ClearAllPlots))
+		self.FSM.AddTransition("toMultipleFrames",Transition("Single_MultipleFrames",self.Plots.ClearAllPlots))
+		self.FSM.AddTransition("toSampleFor10Minutes",Transition("Single_SampleFor10Minutes",self.Plots.ClearAllPlots))
 		self.FSM.AddTransition("toDone",Transition("Done",self.StopController))		
 
 	def LaunchController(self, cargo, Plot_3D, Plot_2D, Text = None):
+		self.StartTime = datetime.now()
+		self.SavePath = "Results/Debug/" + self.StartTime.strftime("%Y-%d-%b_%H-%M-%S")
+		if not os.path.exists(self.SavePath):
+			os.makedirs(self.SavePath)
+
+		self.FSM.SetSavePath(self.SavePath)
 		self.FSM.SetCargo(cargo)
 		self.FSM.SetState("Ready")
-		super(debug_Controller, self).LaunchController(cargo, Plot_3D, Plot_2D, Text = None)		
+		super(debug_Controller, self).LaunchController(cargo, Plot_3D, Plot_2D, Text = None)
+
+class DriftAnalysis_Controller(Controller):
+	def __init__(self, name, Interface, Timeout=10):
+		
+		self.SavePath = "Results/Drift"
+		if not os.path.exists(self.SavePath):
+			os.makedirs(self.SavePath)
+		super(DriftAnalysis_Controller, self).__init__(name,Interface,Timeout)
+
+		## STATES ##
+		self.FSM.AddState("Ready",self.No_Action, Cond_UniqueTransition("InitialCalibration"))
+		self.FSM.AddState("InitialCalibration", self.Actions.Assing("CalibArray"), Cond_UniqueTransition("DACSensitivity"))
+		self.FSM.AddState("DACSensitivity", self.Actions.Assing("DACSensitivityTest"), Cond_UniqueTransition("InitialDriftSampling"))
+		self.FSM.AddState("InitialDriftSampling", self.Actions.Assing("SampleFor10Minutes"), Cond_UniqueTransition("Done"))
+		self.FSM.AddState("Done", self.No_Action, Condition_Empty())
+		self.FSM.SetState("Done")
+
+		## TRANSITIONS ##
+		self.FSM.AddTransition("toInitialCalibration",Transition("InitialCalibration",self.Plots.ClearAllPlots))
+		self.FSM.AddTransition("toDACSensitivity",Transition("DACSensitivity",self.Plots.ClearAllPlots))
+		self.FSM.AddTransition("toInitialDriftSampling",Transition("InitialDriftSampling",self.Plots.ClearAllPlots))
+		self.FSM.AddTransition("toDone",Transition("Done",self.StopController))		
+
+	def LaunchController(self, cargo, Plot_3D, Plot_2D, Text = None):
+		self.StartTime = datetime.now()
+		self.SavePath = "Results/Drift/" + self.StartTime.strftime("%Y-%d-%b_%H-%M-%S")
+		if not os.path.exists(self.SavePath):
+			os.makedirs(self.SavePath)
+
+		self.FSM.SetSavePath(self.SavePath)
+		self.FSM.SetCargo(cargo)
+		self.FSM.SetState("Ready")
+
+		super(DriftAnalysis_Controller, self).LaunchController(cargo, Plot_3D, Plot_2D, Text = None)

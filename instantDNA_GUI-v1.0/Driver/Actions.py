@@ -1,5 +1,3 @@
-from Driver.IO_File import IO_File
-
 ##########################################################################################
 class List_Actions(object):
 	def __init__(self, Control):
@@ -8,18 +6,6 @@ class List_Actions(object):
 	
 	def Create_Action(self, ActionSource, ActionType, ActionName, ActionCode, parameter=1.0):
 		self.Action[ActionName] = Action(ActionSource, ActionType, ActionName, ActionCode, self.Control, parameter)
-
-	def Launch_Action(self,ActionName, parameter=1.0):
-		print("Action '" + actionName + "' launched")
-		self.Action[ActionName].Launch(parameter)
-
-	def Process_Action(self, ActionName):
-		print("Action '" + actionName + "' executed")
-		self.Action[ActionName].Process()
-
-	def Finish_Action(self, ActionName):
-		print("Action '" + actionName + "' finalised")
-		self.Action[ActionName].Finish()
 
 	def Assing(self, ActionName):
 		return self.Action[ActionName]
@@ -36,7 +22,6 @@ class Action(object):
 		self.ActionActive = 0
 		self.ActionControl = Control
 
-		self.IO_File = IO_File(Control.name, ActionName)
 		if self.ActionType == "Frame":
 			self.ActionHandler = self.ActionControl.Interface.ReceiveFrame
 		elif self.ActionType == "Pixel":
@@ -47,40 +32,37 @@ class Action(object):
 	def Enter(self):
 		self.ActionData.Clear()
 		self.ActionActive = 1
-		self.IO_File.OpenFile()
 		if self.ActionSource == "STM":
 			self.ActionControl.Interface.sendMessage(self.ActionCode, self.ActionParameter)
 			self.ActionControl.EnableInterrupt(self)
 
-	def Execute(self):
+	def Execute(self, File, Plots):
 		if self.ActionSource == "STM" and self.ActionControl.InterruptReady == True:
-			self.ManageInterrupt()
+			self.ManageInterrupt(File, Plots)
 		elif self.ActionSource == "RPi":
 			self.ActionHandler()
 			#self.UpdatePlots()
 
 	def Exit(self):
-		self.IO_File.CloseFile()
 		self.ActionControl.DisableInterrupt()
 
-	def ManageInterrupt(self):
+	def ManageInterrupt(self, File, Plots):
 		self.ActionControl.InterruptReady = False
 		[DC, Freq, Calib, RefTemp, EoM] = self.ActionHandler()
 		self.ActionData.Update(DC, Freq, Calib, RefTemp, EoM)
 		if self.ActionData.EoM == 0:
-			self.IO_File.SaveData(self.ActionData)
-			self.UpdatePlots()
+			self.UpdatePlots(Plots)
+			File.SaveData(self.ActionData)
 		else:
 			self.ActionActive = 0
 
-
-	def UpdatePlots(self):
+	def UpdatePlots(self, Plots):
 		if self.ActionType == "Frame":
-			self.ActionControl.Plots.PlotFrame(self.ActionData.DC, self.ActionData.Av_DC)
+			Plots.PlotFrame(self.ActionData.DC, self.ActionData.Av_DC)
 		elif self.ActionType == "Pixel":
-			self.ActionControl.Plots.PlotPixel(self.ActionData.Av_DC)
+			Plots.PlotPixel(self.ActionData.Av_DC)
 		elif self.ActionType == "RefTemp":
-			self.ActionControl.Plots.PlotPixel(self.ActionData.RefTemp)
+			Plots.PlotPixel(self.ActionData.RefTemp)
 
 class No_Action(Action):
 	def __init__(self, ActionSource = None, ActionType = None, ActionName = None, ActionCode = None, Control = None, parameter = 0.0):
@@ -95,7 +77,7 @@ class No_Action(Action):
 	def Enter(self):
 		pass
 
-	def Execute(self):
+	def Execute(self, File, Plots):
 		pass
 
 	def Exit(self):

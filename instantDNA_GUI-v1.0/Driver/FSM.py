@@ -1,3 +1,5 @@
+from Driver.IO_File import IO_File
+
 ###########################################
 
 class Transition(object):
@@ -16,18 +18,21 @@ class State(object):
 		self.stateName = stateName
 		self.Action = Action
 		self.Condition = Condition
+		self.IO_Handle = IO_File(FSM.control.SavePath, stateName)
 
 	def Enter(self):
 		print("State '" + self.stateName + "' launched")
 		self.Action.Enter()
+		self.IO_Handle.OpenFile()
 
 	def Execute(self):
-		self.Action.Execute()
+		self.Action.Execute(self.IO_Handle, self.Plots)
 		self.Condition.Execute(self)
 		
 	def Exit(self):
 		print("State '" + self.stateName + "' finalised")
 		self.Action.Exit()
+		self.IO_Handle.CloseFile()
 			
 
 ############################################
@@ -53,6 +58,10 @@ class FSM(object):
 
 	def SetCargo(self, cargo):
 		self.cargo = cargo
+
+	def SetSavePath(self, Path):
+		for key in self.states:
+			self.states[key].IO_Handle.UpdatePath(Path) 
 
 	def Transition(self, transName):
 		self.trans = self.transitions[transName]
