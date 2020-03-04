@@ -85,9 +85,10 @@ static void MX_TIM7_Init(void);
   * @retval int
   */
 int main(void)
+
 {
   /* USER CODE BEGIN 1 */
-
+	int sample;
   /* USER CODE END 1 */
   
 
@@ -192,10 +193,12 @@ int main(void)
 			
 			case CHARACTCURVES:
 				ObtainCharactCurves(FrameBuffer);
+				Send_EndOfAction_FrameCalib(FrameBuffer);
 				break;
 			
 			case CALIB_ARRAY:
 				Calib_Array_Chem_STM(FrameBuffer);
+				Send_EndOfAction_FrameCalib(FrameBuffer);
 				break;
 
 			// DEMO METHOD!
@@ -207,36 +210,44 @@ int main(void)
 			case LAMP_CONTROL:
 				instantDNA.Platform_Temp = *(float *)&RPi_Param;
 				LAMPControl(instantDNA.Platform_Temp, FrameBuffer);
+				Send_EndOfAction_FrameCalib(FrameBuffer);
 				break;
 			
 			case PCR_CONTROL:
 				instantDNA.Platform_Temp = *(float *)&RPi_Param;
 				PCRControl(FrameBuffer, 1);
+				EndReferenceTemp();
 				break;
 			
 			case TEMP_CONTROL:
 				instantDNA.Platform_Temp = *(float *)&RPi_Param;
 				TempControl(instantDNA.Platform_Temp, PixelBuffer);
+				Send_EndOfAction_Pixel(PixelBuffer);
 				break;
 			
 			case TEMP_CHARACT:
 				TempCharact(FrameBuffer);
+				Send_EndOfAction_FrameCalib(FrameBuffer);
 				break;
 
 			case TEMP_REFMEAS:
 				TempRefSensorCharact();
+				EndReferenceTemp();
 				break;
 
 			case TEMP_NOISE:
 				TempNoise(FrameBuffer);
+				Send_EndOfAction_Pixel(FrameBuffer);
 				break;
 			
 			case TEMP_COILCHARACT:
 				TempCoilCharact();
+				EndReferenceTemp();
 				break;
 			
 			case TEMP_COILDYNAMIC:
 				TempCoilDynamics();
+				EndReferenceTemp();
 				break;
 			
 /*			case WAVEFORM_GEN:
@@ -245,11 +256,23 @@ int main(void)
 			
 			case CHEM_NOISE:
 				ChemNoise(FrameBuffer);
+				Send_EndOfAction_Pixel(FrameBuffer);
 				break;
 			
-			case DRIFT_ANALYSIS:
-				Launch_DriftAnalysis(FrameBuffer);
+			case MULTIPLE_FRAMES:
+				for(sample = 0; sample < *(float *)&RPi_Param; sample++) ObtainAndSendFrame_Chem(FrameBuffer);
+				Send_EndOfAction_FrameCalib(FrameBuffer);
 				break;
+			
+			case SAMPLE_MINUTES:
+				SampleForMinutes(FrameBuffer, *(float *)&RPi_Param);
+				Send_EndOfAction_FrameCalib(FrameBuffer);
+				break;				
+			
+			case DAC_SENS:
+				DACSensitivityTest(FrameBuffer);
+				Send_EndOfAction_FrameCalib(FrameBuffer);
+				break;	
 			
 			default:
 				tx[0] = 0x00;
@@ -651,7 +674,7 @@ static void MX_TIM7_Init(void)
   htim7.Instance = TIM7;
   htim7.Init.Prescaler = 65535;
   htim7.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim7.Init.Period = 1281;
+  htim7.Init.Period = 65535;
   htim7.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim7) != HAL_OK)
   {
@@ -821,9 +844,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 		instantDNA.DAC_RefElect_Voltage = instantDNA.DAC_RefElect_DC + instantDNA.DAC_RefElect_SineWave;
 		setup_DAC(DAC_REFELEC);
 	}*/
-	else if (htim == &htim7){
-		Sampling_ElapsedTime++;
-	}
+	/*else if (htim == &htim7){
+		instantDNA.Sample_TimeElapsed++;
+	}*/
 	
 }
 /* USER CODE END 4 */

@@ -13,7 +13,7 @@ extern "C" {
 /**************************/
 /* EXTERNAL FUNCTIONS 		*/
 /**************************/
-extern TIM_HandleTypeDef htim7;
+
 extern void Calib_Array_Chem_STM(volatile int*);
 extern void ObtainAndSendFrame_Chem(volatile int*);
 /**************************/
@@ -77,16 +77,5 @@ void TickFSM_DA(volatile int* FrameBuf){
 
 }
 
-/**********************************/
-/* DRIVERS 												*/
-/**********************************/
-void Start_SamplingTimer(void){
-	HAL_TIM_Base_Start_IT(&htim7);
-	Sampling_ElapsedTime = 0;
-}
-
-void Stop_SamplingTimer(void){
-	HAL_TIM_Base_Stop_IT(&htim7);
-}
 
 #endif /* __DRIFTANALYSIS_H */

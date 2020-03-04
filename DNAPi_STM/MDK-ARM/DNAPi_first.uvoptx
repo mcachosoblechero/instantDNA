@@ -153,47 +153,62 @@
         <Ww>
           <count>0</count>
           <WinNumber>1</WinNumber>
-          <ItemText>instantDNA</ItemText>
+          <ItemText>TimerCh2</ItemText>
         </Ww>
         <Ww>
           <count>1</count>
           <WinNumber>1</WinNumber>
-          <ItemText>TimerCh2</ItemText>
+          <ItemText>Temp_Coil</ItemText>
         </Ww>
         <Ww>
           <count>2</count>
           <WinNumber>1</WinNumber>
-          <ItemText>Temp_Coil</ItemText>
+          <ItemText>DS18B20</ItemText>
         </Ww>
         <Ww>
           <count>3</count>
           <WinNumber>1</WinNumber>
-          <ItemText>DS18B20</ItemText>
+          <ItemText>byte</ItemText>
         </Ww>
         <Ww>
           <count>4</count>
           <WinNumber>1</WinNumber>
-          <ItemText>byte</ItemText>
+          <ItemText>HighTime</ItemText>
         </Ww>
         <Ww>
           <count>5</count>
           <WinNumber>1</WinNumber>
-          <ItemText>HighTime</ItemText>
+          <ItemText>Sampling_ElapsedTime,0x0A</ItemText>
         </Ww>
         <Ww>
           <count>6</count>
           <WinNumber>1</WinNumber>
-          <ItemText>Sampling_ElapsedTime,0x0A</ItemText>
+          <ItemText>FrameBuf</ItemText>
         </Ww>
         <Ww>
           <count>7</count>
           <WinNumber>1</WinNumber>
-          <ItemText>FrameBuf</ItemText>
+          <ItemText>FrameBuffer</ItemText>
         </Ww>
         <Ww>
           <count>8</count>
           <WinNumber>1</WinNumber>
-          <ItemText>FrameBuffer</ItemText>
+          <ItemText>\\DNAPi_first\../Src/main.c\instantDNA</ItemText>
+        </Ww>
+        <Ww>
+          <count>9</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>STM_counter,0x0A</ItemText>
+        </Ww>
+        <Ww>
+          <count>10</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>Remainer_counter,0x0A</ItemText>
+        </Ww>
+        <Ww>
+          <count>11</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>Minutes_counter,0x0A</ItemText>
         </Ww>
       </WatchWindow1>
       <MemoryWindow1>

@@ -48,7 +48,9 @@ extern "C" {
 #define TEMP_COILDYNAMIC			0x11
 //#define WAVEFORM_GEN					0x12
 #define CHEM_NOISE						0x13
-#define DRIFT_ANALYSIS				0x14
+#define MULTIPLE_FRAMES				0x14
+#define SAMPLE_MINUTES				0x15
+#define DAC_SENS							0x16
 
 #define PIXEL_TIMEOUT		10 // -> 1ms @ 84MHz
 #define PIXEL_PRESCALER 4		// -> 1 sample every 4 samples
@@ -128,6 +130,10 @@ extern "C" {
 // TEMP COIL MODE
 #define TEMPCOIL_MODE						1    // 0 -> Voltage; 1 -> PWM
 
+// TIMER CONSTANTS
+#define TIMER_1SEC	1280
+#define TIMER_30SEC	38450
+
 
 /************* PLATFORM VARIABLES ***********/
 extern DAC_HandleTypeDef hdac;
@@ -139,7 +145,10 @@ extern TIM_HandleTypeDef htim2;
 extern TIM_HandleTypeDef htim3;
 //extern TIM_HandleTypeDef htim4;
 extern TIM_HandleTypeDef htim5;
+extern TIM_HandleTypeDef htim7;
 extern TIM_HandleTypeDef htim9;
+
+static void MX_TIM7_Init(void);
 /********************************************/
 
 /************* GLOBAL VARIABLES *************/
@@ -167,6 +176,8 @@ struct PlatformParameters {
 	
 	int PWM_Coil_Frequency;
 	int PWM_Coil_HighTime;
+	
+	float Sampling_Minutes;
 	
 };
 
@@ -196,7 +207,6 @@ uint8_t buf[5];
 char RPi_ActionReq;
 char RPi_Param[4];
 uint8_t tx[5] = {0x00, 0x00, 0xAB, 0x00, 0xCD};
-int counter=0;
 uint16_t data_to_send;
 volatile int spi_int_counter = 0;
 volatile int ctrl = 0;
@@ -236,6 +246,8 @@ void TempCoilCharact(void);
 void TempCoilDynamics(void);
 //void WaveGen(volatile int*);
 void ChemNoise(volatile int*);
+void SampleForMinutes(volatile int*, float);
+void DACSensitivityTest(volatile int*);
 void Launch_DriftAnalysis(volatile int*);
 /******* DRIVERS **************************/
 void WaitSPICommand(void);
@@ -248,6 +260,8 @@ void Start_Timers(void);
 void Stop_Timers(void);
 void Start_PWM_Timer(void);
 void Stop_PWM_Timer(void);
+void Start_SamplingTimer(void);
+void Stop_SamplingTimer(void);
 volatile int* ObtainFrame(volatile int*, volatile int*);
 volatile int* ObtainPixel(volatile int*, int, int, volatile int*);
 void SendFrame_RPi(volatile int*);
@@ -289,6 +303,7 @@ void InitPlatform(void){
 	instantDNA.DAC_RefElect_SineWave_Time = 0;
 	instantDNA.PWM_Coil_Frequency = PWM_COIL_FREQUENCY;
 	instantDNA.PWM_Coil_HighTime = 0;
+	instantDNA.Sampling_Minutes = 1.0;
 	
 }
 
@@ -345,9 +360,6 @@ void ObtainCharactCurves(volatile int *FrameBuf){
 		SendFrameAndCalibration_RPi(FrameBuf, instantDNA.CalibrationBuffer_DutyCycle);
 		instantDNA.DAC_RefElect_Voltage += (float)CHARACTCURVE_STEP;
 	}
-	
-	Delay_2ms();
-	Send_EndOfAction_FrameCalib(FrameBuf);
 	
 }
 
@@ -437,9 +449,6 @@ void Calib_Array_Chem_STM(volatile int *FrameBuf){
 		SendFrameAndCalibration_RPi(FrameBuf,instantDNA.CalibrationBuffer_DutyCycle);
 		
 	}
-	
-	// SEND End Of Action
-	Send_EndOfAction_Frame(FrameBuf);
 	
 	for(pixel = 0; pixel<1024; pixel++) instantDNA.CalibrationBuffer_Frequency[pixel] = instantDNA.CalibrationBuffer_DutyCycle[pixel];
 	
@@ -568,7 +577,6 @@ void TempControl(float Temp, volatile int* PixBuf){
 	for(j = 0; j<40; j++) ObtainAndSendPixel_Temp(PixBuf);
 	instantDNA.DAC_Peltier_Voltage = (float)0.0;
 	setup_DAC(DAC_PELTIER);
-	Send_EndOfAction_Pixel(PixBuf);
 	
 }
 
@@ -577,7 +585,6 @@ void LAMPControl(float Temp, volatile int* FrameBuf){
 	setup_DAC(DAC_PELTIER);
 	instantDNA.DAC_Peltier_Voltage = (float)0.0;
 	setup_DAC(DAC_PELTIER);
-	Send_EndOfAction_FrameCalib(FrameBuf);
 }
 
 void PCRControl(volatile int* FrameBuf, int NumCycles){
@@ -593,9 +600,7 @@ void PCRControl(volatile int* FrameBuf, int NumCycles){
 	
 	instantDNA.DAC_Peltier_Voltage = (float)0.0;
 	setup_DAC(DAC_PELTIER);
-	
-	Delay_2ms();
-	EndReferenceTemp();
+
 
 }
 
@@ -605,17 +610,13 @@ void TempCharact(volatile int* FrameBuf){
 	int j;
 	for(j=0; j<SAMPLES_TCHARACT; j++) ObtainAndSendFrame_Temp(FrameBuf);
 	
-	Send_EndOfAction_FrameCalib(FrameBuf);
-	
 }
 
 void TempNoise(volatile int* PixelBuf){
 	
 	int j;
 	for(j=0; j<SAMPLES_TNOISE; j++) ObtainAndSendPixel_Temp(PixelBuf);
-	
-	Send_EndOfAction_Pixel(PixelBuf);
-	
+
 }
 
 
@@ -627,8 +628,6 @@ void TempRefSensorCharact(void){
 		ReadReferenceTemp();
 		SendReferenceTemp();
 	}
-	Delay_2ms();
-	EndReferenceTemp();
 	
 }
 
@@ -653,9 +652,6 @@ void TempCoilCharact(void){
 	instantDNA.DAC_Coil_Voltage = 0.0;
 	setup_DAC(DAC_COIL);
 	/********************************************/
-	
-	Delay_2ms();
-	EndReferenceTemp();
 	
 }
 
@@ -687,9 +683,6 @@ void TempCoilDynamics(void){
 	setup_DAC(DAC_COIL);
 	/*******************************************/
 	
-	Delay_2ms();
-	EndReferenceTemp();
-
 }
 
 /*void WaveGen(volatile int* FrameBuf){
@@ -715,9 +708,46 @@ void ChemNoise(volatile int* PixelBuf){
 	
 	Calib_Pixel_Chem_STM(PixelBuf);
 	for(j = 0; j < SAMPLES_CNOISE; j++) ObtainAndSendPixel_Chem(PixelBuf);
-	Delay_2ms();
-	Send_EndOfAction_Pixel(PixelBuf);
 	
+}
+
+void SampleForMinutes(volatile int* FrameBuf, float Minutes){
+	
+	int Minutes_counter = 0;
+	int Remainer_counter = 0;
+	int STM_counter = 0;
+	
+	Start_SamplingTimer();
+	__HAL_TIM_SetCounter(&htim7, 0);
+	// Only can do 30 seconds timer, so need to do twice as many loops
+	while (Minutes_counter < (Minutes * 2)){
+		
+		STM_counter = 0 ;
+		while (STM_counter < TIMER_30SEC){
+			ObtainAndSendFrame_Chem(FrameBuf);
+			STM_counter = __HAL_TIM_GetCounter(&htim7) + Remainer_counter;
+		}
+		__HAL_TIM_SetCounter(&htim7, 0);
+		Remainer_counter = STM_counter - TIMER_30SEC;
+		Minutes_counter++;
+	}
+
+	Stop_SamplingTimer();
+
+	
+}
+
+void DACSensitivityTest(volatile int* FrameBuf){
+
+	int j;
+	
+	for (j=0; j<5; j++) ObtainAndSendFrame_Chem(FrameBuf);
+	for (j=0; j<NUMPIXELS; j++) instantDNA.CalibrationBuffer_DutyCycle[j] += 10;
+	for (j=0; j<5; j++) ObtainAndSendFrame_Chem(FrameBuf);
+	for (j=0; j<NUMPIXELS; j++) instantDNA.CalibrationBuffer_DutyCycle[j] -= 20;
+	for (j=0; j<5; j++) ObtainAndSendFrame_Chem(FrameBuf);
+	for (j=0; j<NUMPIXELS; j++) instantDNA.CalibrationBuffer_DutyCycle[j] += 10;
+
 }
 
 void Launch_DriftAnalysis(volatile int* FrameBuf){
@@ -792,6 +822,20 @@ void Stop_PWM_Timer(void){
 	HAL_TIM_PWM_Stop(&htim9, TIM_CHANNEL_1);
 	/*******************/
 	
+}
+
+void Start_SamplingTimer(void){
+	/*******************/
+	/* Start the timer */
+	HAL_TIM_Base_Start(&htim7);
+	/*******************/
+}
+
+void Stop_SamplingTimer(void){
+	/*******************/
+	/* Stop the timer  */
+	HAL_TIM_Base_Stop(&htim7);
+	/*******************/
 }
 
 void WaitSPICommand(void){
@@ -1110,6 +1154,8 @@ void EndReferenceTemp(){
 
 	float EndTemp = -50.0;
 	uint8_t *byte = (uint8_t *)(&EndTemp);
+	
+	Delay_2ms();
 	
 	HAL_SPI_TransmitReceive_IT(&hspi1, (uint8_t *)byte, (uint8_t *)byte, 4);
 	HAL_GPIO_WritePin(IRQ_Frame_GPIO_Port, IRQ_Frame_Pin, GPIO_PIN_SET);

@@ -1,7 +1,7 @@
 [PreviousGenFiles]
-HeaderPath=C:/Users/migue/OneDrive - Imperial College London/GitHub Code/instantDNA/DNAPi_STM/Inc
+HeaderPath=C:/Users/mc1713/OneDrive - Imperial College London/GitHub Code/instantDNA/DNAPi_STM/Inc
 HeaderFiles=stm32f4xx_it.h;stm32f4xx_hal_conf.h;main.h;
-SourcePath=C:/Users/migue/OneDrive - Imperial College London/GitHub Code/instantDNA/DNAPi_STM/Src
+SourcePath=C:/Users/mc1713/OneDrive - Imperial College London/GitHub Code/instantDNA/DNAPi_STM/Src
 SourceFiles=stm32f4xx_it.c;stm32f4xx_hal_msp.c;main.c;
 
 [PreviousLibFiles]
