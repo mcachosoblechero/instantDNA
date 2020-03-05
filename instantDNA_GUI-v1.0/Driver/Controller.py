@@ -53,7 +53,7 @@ class Controller(object):
 		self.Actions.Create_Action("STM", "Frame", "CalibArray", 8)
 		self.Actions.Create_Action("STM", "Frame", "LAMP", 10)
 		self.Actions.Create_Action("STM", "RefTemp", "PCR", 11)
-		self.Actions.Create_Action("STM", "Pixel", "TempControl", 12)
+		self.Actions.Create_Action("STM", "RefTemp", "TempControl", 12, 95.0)
 		self.Actions.Create_Action("STM", "Frame", "TempCharact", 13)
 		self.Actions.Create_Action("STM", "RefTemp", "TempRefMeas", 14)
 		self.Actions.Create_Action("STM", "Pixel", "TempNoise", 15)
